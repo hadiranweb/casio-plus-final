@@ -5,3 +5,7 @@ packages:
 
 overrides:
   turbo-stream: 3.2.1
+
+injectWorkspacePackages: true
+syncInjectedDepsAfterScripts:
+  - build
