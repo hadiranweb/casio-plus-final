@@ -14,7 +14,7 @@ units:
     path: apps/console-web
     status: mvp-surface
     public: false
-    host: app.casioplus.com
+    host: console.casioplus.com
     framework: remix
     compiler: remix-vite
     runtime: remix-serve
@@ -32,10 +32,18 @@ units:
     build_output: build/server + build/client
     dockerfile: deployment/Dockerfile.forge
     docker_build_validation: ci
+  integration-dispatcher:
+    path: services/integration-dispatcher
+    status: mvp-outbox-dispatcher
+    public: false
+    trigger: core-internal-api
+    canonical_store_access: false
+    dockerfile: deployment/Dockerfile.dispatcher
+    docker_build_validation: ci
   native-diagnosis-worker:
     path: services/native-diagnosis-worker
     public: false
-    trigger: queue
+    trigger: core-signed-request
   n8n-adapter:
     path: services/n8n-adapter
     public: false
@@ -50,7 +58,9 @@ resources:
     purpose: canonical
     direct_runtime_access: false
   redis:
-    purpose: queue-and-rate-limit
+    purpose: ephemeral-rate-limit-only
+  postgres-outbox:
+    purpose: canonical-integration-queue
   object_storage:
     purpose: artifact-by-reference
 promotion:

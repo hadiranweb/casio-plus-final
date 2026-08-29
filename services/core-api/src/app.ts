@@ -19,6 +19,11 @@ import {
 } from '../../../packages/contracts/src/index.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
+import {
+  mountIntegrationGateway,
+  type IntegrationSecretMap,
+  type RawBodyRequest,
+} from './integration-gateway.js';
 
 export type TenantContext = ReturnType<typeof organizationContextSchema.parse> & {
   sessionId?: string;
@@ -114,6 +119,8 @@ export interface AppOptions {
   resolveTenantContext?: TenantContextResolver;
   enforceMembership?: boolean;
   sessionSecret?: string;
+  integrationSecrets?: IntegrationSecretMap;
+  dispatcherSecret?: string;
 }
 
 export function createApp(pool: Pool, options: AppOptions = {}) {
@@ -122,6 +129,14 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(helmet());
+  app.use(
+    '/api/v1/integrations/events',
+    express.raw({ type: 'application/json', limit: '256kb' }),
+    (request, _response, next) => {
+      (request as RawBodyRequest).rawBody = Buffer.from(request.body as Buffer);
+      next();
+    },
+  );
   app.use(express.json({ limit: '256kb' }));
   app.use((req, res, next) => {
     const startedAt = Date.now();
@@ -163,6 +178,9 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   if (options.sessionSecret) {
     mountIdentityRoutes(app, pool, options.sessionSecret);
+  }
+  if (options.integrationSecrets) {
+    mountIntegrationGateway(app, pool, options.integrationSecrets, options.dispatcherSecret);
   }
 
   app.get('/healthz', async (_req, res, next) => {

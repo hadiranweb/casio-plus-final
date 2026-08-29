@@ -63,6 +63,14 @@ export const acceptInvitationSchema = z.object({
   token: z.string().trim().min(32).max(512),
 });
 
+export const integrationIngressSchema = z.object({
+  externalTenantRef: z.string().trim().min(1).max(300),
+  externalWorkspaceRef: z.string().trim().min(1).max(300),
+  operation: z.string().regex(/^(n8n|model|action)\.[a-z][a-z0-9_.-]{1,120}$/),
+  idempotencyKey: z.string().trim().min(16).max(200),
+  payload: z.record(z.string(), z.unknown()).default({}),
+});
+
 const memoryKindSchema = z.enum([
   'verified_fact',
   'operational_procedure',
@@ -197,6 +205,7 @@ export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
+export type IntegrationIngressInput = z.infer<typeof integrationIngressSchema>;
 export type CreateWorkItemInput = z.infer<typeof createWorkItemSchema>;
 export type CreateFlowInput = z.infer<typeof createFlowSchema>;
 export type CreateFlowVersionInput = z.infer<typeof createFlowVersionSchema>;

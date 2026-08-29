@@ -11,6 +11,16 @@ const port = Number(process.env.PORT ?? 8080);
 const databaseUrl = process.env.DATABASE_URL;
 const sessionSecret = process.env.SESSION_SECRET;
 const allowDevTenantHeaders = process.env.ALLOW_DEV_TENANT_HEADERS === 'true';
+const dispatcherSecret = process.env.DISPATCHER_SHARED_SECRET;
+let integrationSecrets: Record<string, string> = {};
+try {
+  integrationSecrets = JSON.parse(process.env.INTEGRATION_HMAC_SECRETS_JSON ?? '{}') as Record<
+    string,
+    string
+  >;
+} catch {
+  throw new Error('INTEGRATION_HMAC_SECRETS_JSON must be valid JSON');
+}
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL must be configured; Core never uses fake persistence');
@@ -31,6 +41,8 @@ const app = createApp(pool, {
   resolveTenantContext: allowDevTenantHeaders
     ? headerTenantContext
     : persistentTenantContext(pool, sessionSecret ?? ''),
+  integrationSecrets,
+  dispatcherSecret,
 });
 
 async function start(): Promise<void> {

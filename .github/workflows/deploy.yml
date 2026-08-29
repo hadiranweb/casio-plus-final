@@ -73,6 +73,10 @@ jobs:
             app_secret: LIARA_WORKER_APP
             dockerfile: deployment/Dockerfile.worker
             port: '8090'
+          - unit: dispatcher
+            app_secret: LIARA_DISPATCHER_APP
+            dockerfile: deployment/Dockerfile.dispatcher
+            port: '8080'
           - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console
@@ -120,6 +124,10 @@ jobs:
             app_secret: LIARA_WORKER_APP
             dockerfile: deployment/Dockerfile.worker
             port: '8090'
+          - unit: dispatcher
+            app_secret: LIARA_DISPATCHER_APP
+            dockerfile: deployment/Dockerfile.dispatcher
+            port: '8080'
           - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console

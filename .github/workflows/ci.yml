@@ -83,6 +83,7 @@ jobs:
         run: |
           docker build --file deployment/Dockerfile.core --tag casioplus-core-ci .
           docker build --file deployment/Dockerfile.worker --tag casioplus-worker-ci .
+          docker build --file deployment/Dockerfile.dispatcher --tag casioplus-dispatcher-ci .
           docker build --file deployment/Dockerfile.console --tag casioplus-console-ci .
           docker build --file deployment/Dockerfile.forge --tag casioplus-forge-ci .
 
