@@ -14,6 +14,55 @@ export const organizationContextSchema = z.object({
   actorId: identifierSchema,
 });
 
+export const emailSchema = z
+  .string()
+  .trim()
+  .email()
+  .max(320)
+  .transform((value) => value.toLowerCase());
+export const passwordSchema = z.string().min(12).max(200);
+export const slugSchema = z.string().regex(/^[a-z][a-z0-9-]{1,63}$/);
+
+export const registerAccountSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  displayName: z.string().trim().min(1).max(200),
+  organizationName: z.string().trim().min(1).max(200),
+  organizationSlug: slugSchema,
+  workspaceName: z.string().trim().min(1).max(200),
+  workspaceSlug: slugSchema,
+});
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  organizationId: identifierSchema.optional(),
+  workspaceId: identifierSchema.optional(),
+});
+
+export const createOrganizationSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  slug: slugSchema,
+  workspaceName: z.string().trim().min(1).max(200),
+  workspaceSlug: slugSchema,
+});
+
+export const createWorkspaceSchema = organizationContextSchema.extend({
+  name: z.string().trim().min(1).max(200),
+  slug: slugSchema,
+});
+
+export const createInvitationSchema = organizationContextSchema.extend({
+  email: emailSchema,
+  workspaceId: identifierSchema.optional(),
+  role: z.enum(['admin', 'editor', 'reviewer', 'viewer', 'consumer']),
+  expiresInHours: z.number().int().min(1).max(720).default(168),
+});
+
+export const acceptInvitationSchema = z.object({
+  token: z.string().trim().min(32).max(512),
+});
+
 const memoryKindSchema = z.enum([
   'verified_fact',
   'operational_procedure',
@@ -142,6 +191,12 @@ export const governedRetrievalSchema = organizationContextSchema.extend({
 });
 
 export type PublicRuntimeConfig = z.infer<typeof publicRuntimeConfigSchema>;
+export type RegisterAccountInput = z.infer<typeof registerAccountSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
+export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
+export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
 export type CreateWorkItemInput = z.infer<typeof createWorkItemSchema>;
 export type CreateFlowInput = z.infer<typeof createFlowSchema>;
 export type CreateFlowVersionInput = z.infer<typeof createFlowVersionSchema>;

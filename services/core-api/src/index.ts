@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyMigrations, createPool } from './db.js';
 import { createApp, headerTenantContext } from './app.js';
-import { authenticatedTenantContext } from './auth.js';
+import { persistentTenantContext } from './auth.js';
 import { loadMigrations } from './migrations.js';
 
 const rootDirectory = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
@@ -27,9 +27,10 @@ if (!allowDevTenantHeaders && (!sessionSecret || sessionSecret.trim().length < 3
 const pool = createPool(databaseUrl);
 const app = createApp(pool, {
   enforceMembership: true,
+  sessionSecret: allowDevTenantHeaders ? undefined : sessionSecret,
   resolveTenantContext: allowDevTenantHeaders
     ? headerTenantContext
-    : authenticatedTenantContext(sessionSecret ?? ''),
+    : persistentTenantContext(pool, sessionSecret ?? ''),
 });
 
 async function start(): Promise<void> {

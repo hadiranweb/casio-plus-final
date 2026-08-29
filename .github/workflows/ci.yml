@@ -54,7 +54,9 @@ jobs:
       - name: Typecheck
         run: pnpm check
 
-      - name: Unit tests
+      - name: Unit and PostgreSQL integration tests
+        env:
+          DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_ci
         run: pnpm test
 
       - name: Topology validation

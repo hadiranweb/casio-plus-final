@@ -18,9 +18,13 @@ import {
   runtimeEventSchema,
 } from '../../../packages/contracts/src/index.js';
 import { withTransaction } from './db.js';
+import { mountIdentityRoutes } from './identity.js';
 
-export type TenantContext = ReturnType<typeof organizationContextSchema.parse>;
-export type TenantContextResolver = (req: Request) => TenantContext;
+export type TenantContext = ReturnType<typeof organizationContextSchema.parse> & {
+  sessionId?: string;
+  userId?: string;
+};
+export type TenantContextResolver = (req: Request) => TenantContext | Promise<TenantContext>;
 type OrganizationRole = 'owner' | 'admin' | 'editor' | 'reviewer' | 'viewer' | 'consumer';
 type RequestWithCasioplusId = Request & { casioplusRequestId?: string };
 
@@ -109,6 +113,7 @@ function runStatusForEvent(type: string): 'running' | 'succeeded' | 'failed' | n
 export interface AppOptions {
   resolveTenantContext?: TenantContextResolver;
   enforceMembership?: boolean;
+  sessionSecret?: string;
 }
 
 export function createApp(pool: Pool, options: AppOptions = {}) {
@@ -156,6 +161,10 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     next();
   });
 
+  if (options.sessionSecret) {
+    mountIdentityRoutes(app, pool, options.sessionSecret);
+  }
+
   app.get('/healthz', async (_req, res, next) => {
     try {
       await pool.query('SELECT 1');
@@ -171,7 +180,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.get('/api/v1/work-items', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const result = await pool.query(
         `SELECT id, organization_id AS "organizationId", workspace_id AS "workspaceId", title, intent,
@@ -190,7 +199,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/work-items', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const input = createWorkItemSchema.parse({ ...req.body, ...context });
       const row = await pool.query(
@@ -220,7 +229,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.get('/api/v1/flows', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const result = await pool.query(
         `SELECT id, organization_id AS "organizationId", workspace_id AS "workspaceId", key, name, status,
@@ -239,7 +248,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/flows', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, authorRoles, enforceMembership);
       const input = createFlowSchema.parse({ ...req.body, ...context });
       const row = await pool.query(
@@ -269,7 +278,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.get('/api/v1/flows/:flowId/versions', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const result = await pool.query(
         `SELECT fv.id, fv.flow_id AS "flowId", fv.version, fv.input_schema AS "inputSchema",
@@ -290,7 +299,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/flows/:flowId/versions', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, authorRoles, enforceMembership);
       const input = createFlowVersionSchema.parse({
         ...req.body,
@@ -333,7 +342,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/flows/:flowId/versions/:versionId/publish', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, authorRoles, enforceMembership);
       const flow = await withTransaction(pool, async (client) => {
         const row = await client.query(
@@ -359,7 +368,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.get('/api/v1/process-runs', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const result = await pool.query(
         `SELECT id, organization_id AS "organizationId", workspace_id AS "workspaceId",
@@ -381,7 +390,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/process-runs', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const input = createProcessRunSchema.parse({ ...req.body, ...context });
       const result = await withTransaction(pool, async (client) => {
@@ -471,7 +480,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/process-runs/:runId/events', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const input = runtimeEventSchema.parse({
         ...req.body,
@@ -541,7 +550,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/process-runs/:runId/execute', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const run = await pool.query<{
         id: string;
@@ -653,7 +662,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/artifacts', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const input = createArtifactSchema.parse({ ...req.body, ...context });
       const artifact = await withTransaction(pool, async (client) => {
@@ -712,7 +721,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.get('/api/v1/artifacts/:artifactId', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const result = await pool.query(
         `SELECT id, organization_id AS "organizationId", workspace_id AS "workspaceId",
@@ -734,7 +743,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/semantic-records', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, authorRoles, enforceMembership);
       const input = createSemanticRecordSchema.parse({ ...req.body, ...context });
       const record = await withTransaction(pool, async (client) => {
@@ -792,7 +801,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/knowledge-claims', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, authorRoles, enforceMembership);
       const input = createKnowledgeClaimSchema.parse({ ...req.body, ...context });
       const claim = await withTransaction(pool, async (client) => {
@@ -837,7 +846,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.get('/api/v1/knowledge-claims', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, reviewerRoles, enforceMembership);
       const lifecycle = typeof req.query.lifecycle === 'string' ? req.query.lifecycle : null;
       const result = await pool.query(
@@ -860,7 +869,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/knowledge-claims/:claimId/review', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, reviewerRoles, enforceMembership);
       const input = reviewDecisionSchema.parse({
         ...req.body,
@@ -915,7 +924,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.post('/api/v1/knowledge-claims/:claimId/promote', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, reviewerRoles, enforceMembership);
       const input = knowledgePromotionSchema.parse({
         ...req.body,
@@ -1002,7 +1011,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
 
   app.get('/api/v1/memory/search', async (req, res, next) => {
     try {
-      const context = resolveTenantContext(req);
+      const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const input = governedRetrievalSchema.parse({
         ...context,
