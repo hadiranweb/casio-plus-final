@@ -2,7 +2,7 @@
 
 ## هدف و مرز
 
-این سند تهدیدهای مسیر MVP را برای یک محصول با دو surface App و Studio، یک Core/API canonical، PostgreSQL و runtimeهای Native Worker، n8n، Open WebUI و OpenClaw مشخص می‌کند. هدف، جلوگیری از افشای tenant، جعل هویت، تبدیل دادهٔ خام به حافظهٔ معتبر، اجرای action بدون approval و ازبین‌رفتن قابلیت audit است.
+این سند تهدیدهای مسیر MVP را برای یک محصول با دو surface Console و Forge، یک Core/API canonical، PostgreSQL و runtimeهای Native Worker، n8n، Open WebUI و OpenClaw مشخص می‌کند. هدف، جلوگیری از افشای tenant، جعل هویت، تبدیل دادهٔ خام به حافظهٔ معتبر، اجرای action بدون approval و ازبین‌رفتن قابلیت audit است.
 
 ## دارایی‌های حساس
 
@@ -21,7 +21,7 @@
 ```text
 Participant / Reviewer / Author
           ↓ session + HTTPS
-App / Studio surface
+Console / Forge surface
           ↓ typed authenticated API
 Core/API — تنها canonical writer
           ↓ private credentials
@@ -32,7 +32,7 @@ Native Worker / n8n / Open WebUI / OpenClaw adapters
 External systems
 ```
 
-App و Studio لایهٔ presentation هستند و نباید به database، secret یا runtime internals دسترسی داشته باشند. Runtimeها untrusted یا partially trusted محسوب می‌شوند: می‌توانند نتیجه یا event تولید کنند، اما مالک state canonical نیستند. Core باید هر payload، identity، tenant و transition را مستقل validate کند.
+Console و Forge لایهٔ presentation هستند و نباید به database، secret یا runtime internals دسترسی داشته باشند. Runtimeها untrusted یا partially trusted محسوب می‌شوند: می‌توانند نتیجه یا event تولید کنند، اما مالک state canonical نیستند. Core باید هر payload، identity، tenant و transition را مستقل validate کند.
 
 ## تهدیدها و کنترل‌ها
 

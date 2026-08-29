@@ -12,13 +12,13 @@
 
 ## ۱. تصمیم نهایی در یک نگاه
 
-Casioplus یک محصول واحد است که App و Studio دو surface آن هستند. Core/API canonical با TypeScript/Node.js و PostgreSQL مسیر critical MVP است. تمام UIهای محصول، شامل App و Studio، فقط با Remix ساخته می‌شوند؛ UI مستقل Vite/React canonical نیست. استفاده از Vite تنها به‌عنوان compiler رسمی Remix Vite مجاز است و نباید با runtime، routing یا مالکیت UI اشتباه گرفته شود.
+Casioplus یک محصول واحد است که Console و Forge دو surface آن هستند. Core/API canonical با TypeScript/Node.js و PostgreSQL مسیر critical MVP است. تمام UIهای محصول، شامل Console و Forge، فقط با Remix ساخته می‌شوند؛ UI مستقل Vite/React canonical نیست. استفاده از Vite تنها به‌عنوان compiler رسمی Remix Vite مجاز است و نباید با runtime، routing یا مالکیت UI اشتباه گرفته شود.
 
 | حوزه             | تصمیم قطعی MVP                                                               |
 | ---------------- | ---------------------------------------------------------------------------- |
-| محصول            | یک محصول واحد با App و Studio                                                |
-| App              | Remix surface برای control، عملیات، Work/Run، Review، Artifact و Memory view |
-| Studio           | Remix surface برای authoring، policy، version، test و publication            |
+| محصول            | یک محصول واحد با Console و Forge                                             |
+| Console          | Remix surface برای control، عملیات، Work/Run، Review، Artifact و Memory view |
+| Forge            | Remix surface برای authoring، policy، version، test و publication            |
 | Core/API         | TypeScript/Node.js؛ تنها canonical writer و authorization boundary           |
 | داده             | PostgreSQL تنها canonical store                                              |
 | UI build/runtime | Remix Vite compiler و `remix-serve`؛ خروجی `build/server` و `build/client`   |
@@ -35,11 +35,11 @@ Casioplus یک محصول واحد است که App و Studio دو surface آن �
 ```text
 کاربر
   ├── app.casioplus.com
-  │     └── App / Remix Control Plane
-  └── studio.casioplus.com
-        └── Studio / Remix Authoring Surface
+  │     └── Console / Remix Control Plane
+  └── forge.casioplus.com
+        └── Forge / Remix Authoring Surface
 
-App + Studio
+Console + Forge
   └── Core/API TypeScript/Node.js
         ├── Authorization و tenant resolution
         ├── Work / Flow / Run / Review lifecycle
@@ -49,15 +49,15 @@ App + Studio
         └── PostgreSQL canonical store
 ```
 
-App و Studio می‌توانند route، navigation و تجربهٔ متفاوت داشته باشند، اما identity، authorization، Flow ownership، Run lifecycle، Memory policy و usage logic را جداگانه پیاده نمی‌کنند. loader/action یا BFF هر surface فقط facade متناسب با همان تجربه است و باید به Core/API canonical متصل بماند.
+Console و Forge می‌توانند route، navigation و تجربهٔ متفاوت داشته باشند، اما identity، authorization، Flow ownership، Run lifecycle، Memory policy و usage logic را جداگانه پیاده نمی‌کنند. loader/action یا BFF هر surface فقط facade متناسب با همان تجربه است و باید به Core/API canonical متصل بماند.
 
 ## ۴. topology دایرکتوری و dependency
 
 ```text
 apps/
-├── app-web/                  # Remix App
+├── console-web/                  # Remix Console
 │   └── app/                  # root، routes و entryهای Remix
-└── studio-web/               # Remix Studio
+└── forge-web/               # Remix Forge
     └── app/                  # root، routes و entryهای Remix
 
 services/
@@ -127,16 +127,16 @@ Integration Gateway تنها مرز ExternalApp با Core است و باید HMA
 
 | سطح                 | مسئولیت                                                                                                              |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| App                 | account، organization، workspace، access، Flow catalog/publication، Work/Run history، Review، Artifact و Memory view |
-| Studio              | Flow authoring، input/output/policy، version، test، publish، runtime binding و memory binding                        |
+| Console             | account، organization، workspace، access، Flow catalog/publication، Work/Run history، Review، Artifact و Memory view |
+| Forge               | Flow authoring، input/output/policy، version، test، publish، runtime binding و memory binding                        |
 | Core/API            | authorization، mapping، lifecycle، audit، artifact metadata، memory governance و usage attribution                   |
 | Integration Gateway | inbound/outbound contract، mapping، HMAC، callback و idempotency                                                     |
 
-Studio credential خام یا runtime internals را نمایش نمی‌دهد. App نیز نباید prompt خصوصی، graph داخلی runtime یا policy enforcement را مالک شود.
+Forge credential خام یا runtime internals را نمایش نمی‌دهد. Console نیز نباید prompt خصوصی، graph داخلی runtime یا policy enforcement را مالک شود.
 
 ## ۱۱. فازبندی و launchability
 
-ترتیب فازهای implementation باید چنین باشد: foundation و identity، Core lifecycle و isolation، Artifact و async runtime، publication و participant experience، تکمیل App/Studio، staging و operational hardening، سپس production promotion. هر فاز باید evidence قابل‌تکرار، test مرزی و rollback story داشته باشد.
+ترتیب فازهای implementation باید چنین باشد: foundation و identity، Core lifecycle و isolation، Artifact و async runtime، publication و participant experience، تکمیل Console/Forge، staging و operational hardening، سپس production promotion. هر فاز باید evidence قابل‌تکرار، test مرزی و rollback story داشته باشد.
 
 MVP زمانی قابل‌راه‌اندازی تلقی می‌شود که TypeScript/Node.js Core، PostgreSQL، دو Remix surface، Native Worker، Golden Flow، tenant isolation، identity واقعی، artifact delivery، migration/restart smoke و staging evidence همگی قابل‌اثبات باشند. تا پیش از آن، عبارت دقیق «architecture contract» یا «vertical slice» است و نه «production-ready».
 

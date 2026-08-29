@@ -14,8 +14,8 @@ Repository محلی `/home/ubuntu/casio-plus` یک repository تازه با تا
 | Core/API            | فعال در مسیر vertical slice | TypeScript/Node.js، PostgreSQL، session امضاشده، membership enforcement، CORS allowlist، correlation ID و request logging بدون body/token       |
 | canonical lifecycle | فعال                        | WorkItem، Flow/FlowVersion، ProcessRun، RuntimeEvent، Artifact metadata، SemanticRecord، KnowledgeClaim، Review، Promotion و governed retrieval |
 | Native runtime      | فعال و مستقل                | HTTP server با HMAC، body limit، schema validation، health و execute؛ بدون direct database access                                               |
-| App surface         | build‌شده، non-public       | Remix SSR dashboard فارسی‌اول برای Work، Run، Artifact و Memory؛ runtime با `remix-serve`                                                       |
-| Studio surface      | build‌شده، non-public       | Remix SSR authoring/governance surface برای Flow، version، runtime binding و publication؛ runtime با `remix-serve`                              |
+| Console surface     | build‌شده، non-public       | Remix SSR dashboard فارسی‌اول برای Work، Run، Artifact و Memory؛ runtime با `remix-serve`                                                       |
+| Forge surface       | build‌شده، non-public       | Remix SSR authoring/governance surface برای Flow، version، runtime binding و publication؛ runtime با `remix-serve`                              |
 | runtime boundaries  | قراردادهای MVP موجود        | n8n orchestrator-only، Open WebUI interaction/model-plane و OpenClaw allowlisted/approval-gated                                                 |
 | migrations          | production-oriented         | migrationهای ordered با registry، SHA-256 checksum، drift detection و idempotent rerun                                                          |
 | CI/CD               | فعال در GitHub              | CI با PostgreSQL service و build همهٔ unitها؛ deploy workflow با staging و production gate                                                      |
@@ -28,7 +28,7 @@ Migration smoke روی database تمیز و اجرای مجدد آن با checks
 
 ### شواهد migration Remix
 
-هر دو surface با `remix vite:build` خروجی `build/server` و `build/client` تولید کردند. typecheck ریشه با NodeNext پس از افزودن declaration رسمی `remix.env.d.ts` و importهای قابل‌resolve موفق شد. اجرای production dependency deployment با `pnpm --filter @casioplus/app-web deploy --prod --legacy` و معادل Studio موفق بود و هر دو bundle، `remix-serve` و `build/server/index.js` را داشتند. SSR smoke هر دو surface نیز title، `lang=fa`، `dir=rtl` و public Core URL را بدون افشای secret بررسی کرد. Docker daemon محلی در دسترس نیست؛ Docker build به CI سپرده شده و تا دریافت نتیجهٔ آن، شواهد image نهایی محسوب نمی‌شود.
+هر دو surface با `remix vite:build` خروجی `build/server` و `build/client` تولید کردند. typecheck ریشه با NodeNext پس از افزودن declaration رسمی `remix.env.d.ts` و importهای قابل‌resolve موفق شد. اجرای production dependency deployment با `pnpm --filter @casioplus/console-web deploy --prod --legacy` و معادل Forge موفق بود و هر دو bundle، `remix-serve` و `build/server/index.js` را داشتند. SSR smoke هر دو surface نیز title، `lang=fa`، `dir=rtl` و public Core URL را بدون افشای secret بررسی کرد. Docker daemon محلی در دسترس نیست؛ Docker build به CI سپرده شده و تا دریافت نتیجهٔ آن، شواهد image نهایی محسوب نمی‌شود.
 
 ## شواهد GitHub Actions
 
@@ -41,7 +41,7 @@ Migration smoke روی database تمیز و اجرای مجدد آن با checks
 
 ## کارهای باقی‌مانده تا production واقعی
 
-پیش از فعال‌کردن gate باید چهار app مستقل Liara برای Core، Worker، App و Studio ساخته شوند و PostgreSQL canonical، Redis، Object Storage، private network، domain و environment variables واقعی پیکربندی شوند. سپس secrets زیر باید در GitHub Environmentهای مناسب قرار گیرند: `LIARA_API_TOKEN`، `LIARA_CORE_APP`، `LIARA_WORKER_APP`، `LIARA_APP_WEB_APP` و `LIARA_STUDIO_WEB_APP`. `LIARA_DEPLOY_ENABLED` باید ابتدا برای staging فعال شود، نه production.
+پیش از فعال‌کردن gate باید چهار app مستقل Liara برای Core، Worker، Console و Forge ساخته شوند و PostgreSQL canonical، Redis، Object Storage، private network، domain و environment variables واقعی پیکربندی شوند. سپس secrets زیر باید در GitHub Environmentهای مناسب قرار گیرند: `LIARA_API_TOKEN`، `LIARA_CORE_APP`، `LIARA_WORKER_APP`، `LIARA_CONSOLE_WEB_APP` و `LIARA_FORGE_WEB_APP`. `LIARA_DEPLOY_ENABLED` باید ابتدا برای staging فعال شود، نه production.
 
 همچنین باید `DATABASE_URL`، `SESSION_SECRET`، `RUNTIME_SHARED_SECRET`، `NATIVE_WORKER_URL`، `CORS_ORIGINS` و `CASIOPLUS_CORE_API_URL` با مقادیر staging تنظیم و بعد از health، tenant isolation، migration و Golden Flow از بیرون شبکهٔ deployment بررسی شوند. production فقط پس از approval Environment و ثبت rollback pointer فعال شود. Login/onboarding واقعی، artifact upload به Object Storage و queue/BullMQ هنوز بخشی از hardening بعدی هستند و نباید با session issuer محلی یا header bootstrap فعلی جایگزین شوند.
 

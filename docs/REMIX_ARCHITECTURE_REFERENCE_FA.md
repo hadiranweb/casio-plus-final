@@ -1,10 +1,10 @@
 # مرجع معماری Remix در Casioplus
 
-**وضعیت:** مرجع فنی برای تصمیم قطعی Remix-only در App و Studio
+**وضعیت:** مرجع فنی برای تصمیم قطعی Remix-only در Console و Forge
 
 ## تصمیم اجرایی
 
-App و Studio در Casioplus باید Remix applicationهای TypeScript باشند. استفاده از Vite فقط در نقش compiler رسمی Remix Vite مجاز است؛ Vite/React standalone، static SPA server، `createRoot` به‌عنوان entrypoint مستقل و routing خارج از Remix مجاز نیست.
+Console و Forge در Casioplus باید Remix applicationهای TypeScript باشند. استفاده از Vite فقط در نقش compiler رسمی Remix Vite مجاز است؛ Vite/React standalone، static SPA server، `createRoot` به‌عنوان entrypoint مستقل و routing خارج از Remix مجاز نیست.
 
 هر surface باید `app/root.tsx`، `app/routes/`، `app/entry.client.tsx` و `app/entry.server.tsx` داشته باشد. build باید با `remix vite:build` و production server با `remix-serve ./build/server/index.js` انجام شود. `build/client` و `build/server` generated output هستند و نباید در Git commit شوند.
 
@@ -12,7 +12,7 @@ App و Studio در Casioplus باید Remix applicationهای TypeScript باش�
 
 ## نکتهٔ deployment
 
-برای Liara، Dockerfile هر surface باید production dependencyهای همان package را با `pnpm --filter ... deploy --prod --legacy` آماده کند، build Remix را در stage ساخت اجرا کند، `build/server` را به runtime منتقل کند و `remix-serve` را روی پورت قراردادی اجرا کند. در این monorepo، `--legacy` به‌دلیل تنظیمات pnpm 10 و workspace غیر-injected صریح است؛ تغییر آن فقط پس از migration به injected workspace packages و validation دوباره مجاز است. App و Studio همچنان دو surface یک محصول‌اند و environment binding عمومی Core باید از loader/root به client برسد؛ secret server-side نباید در loader response یا browser bundle قرار گیرد.
+برای Liara، Dockerfile هر surface باید production dependencyهای همان package را با `pnpm --filter ... deploy --prod --legacy` آماده کند، build Remix را در stage ساخت اجرا کند، `build/server` را به runtime منتقل کند و `remix-serve` را روی پورت قراردادی اجرا کند. در این monorepo، `--legacy` به‌دلیل تنظیمات pnpm 10 و workspace غیر-injected صریح است؛ تغییر آن فقط پس از migration به injected workspace packages و validation دوباره مجاز است. Console و Forge همچنان دو surface یک محصول‌اند و environment binding عمومی Core باید از loader/root به client برسد؛ secret server-side نباید در loader response یا browser bundle قرار گیرد.
 
 ## منابع رسمی
 

@@ -15,12 +15,12 @@ async function pathExists(path: string) {
 }
 
 const requiredDirectories = [
-  'apps/app-web',
-  'apps/app-web/app',
-  'apps/app-web/app/routes',
-  'apps/studio-web',
-  'apps/studio-web/app',
-  'apps/studio-web/app/routes',
+  'apps/console-web',
+  'apps/console-web/app',
+  'apps/console-web/app/routes',
+  'apps/forge-web',
+  'apps/forge-web/app',
+  'apps/forge-web/app/routes',
   'services/core-api',
   'services/native-diagnosis-worker',
   'packages/contracts',
@@ -37,10 +37,10 @@ for (const directory of requiredDirectories) {
 }
 
 for (const path of [
-  'apps/app-web/src',
-  'apps/app-web/index.html',
-  'apps/studio-web/src',
-  'apps/studio-web/index.html',
+  'apps/console-web/src',
+  'apps/console-web/index.html',
+  'apps/forge-web/src',
+  'apps/forge-web/index.html',
 ]) {
   if (await pathExists(resolve(root, path))) {
     throw new Error(`Standalone UI path must not exist: ${path}`);
@@ -66,8 +66,8 @@ if (generatedTrackedPaths.length > 0) {
 }
 
 const workspacePackages = [
-  'apps/app-web/package.json',
-  'apps/studio-web/package.json',
+  'apps/console-web/package.json',
+  'apps/forge-web/package.json',
   'packages/contracts/package.json',
   'packages/domain/package.json',
   'packages/knowledge-model/package.json',
@@ -94,8 +94,8 @@ for (const relativePath of workspacePackages) {
 }
 
 const allowedInternalDependencies: Record<string, string[]> = {
-  '@casioplus/app-web': ['@casioplus/contracts', '@casioplus/ui'],
-  '@casioplus/studio-web': ['@casioplus/contracts', '@casioplus/ui'],
+  '@casioplus/console-web': ['@casioplus/contracts', '@casioplus/ui'],
+  '@casioplus/forge-web': ['@casioplus/contracts', '@casioplus/ui'],
   '@casioplus/contracts': [],
   '@casioplus/domain': [],
   '@casioplus/knowledge-model': ['@casioplus/domain'],
@@ -147,7 +147,7 @@ for (const [packageName, { relativePath, manifest }] of manifests) {
   }
 }
 
-const remixSurfaceNames = ['@casioplus/app-web', '@casioplus/studio-web'];
+const remixSurfaceNames = ['@casioplus/console-web', '@casioplus/forge-web'];
 for (const packageName of remixSurfaceNames) {
   const entry = manifests.get(packageName);
   if (!entry) throw new Error(`Missing Remix surface package: ${packageName}`);
@@ -190,7 +190,7 @@ for (const packageName of remixSurfaceNames) {
   }
 }
 
-for (const dockerfile of ['deployment/Dockerfile.app', 'deployment/Dockerfile.studio']) {
+for (const dockerfile of ['deployment/Dockerfile.console', 'deployment/Dockerfile.forge']) {
   const content = await readFile(resolve(root, dockerfile), 'utf8');
   if (!content.includes('remix-serve') || !content.includes('build/server/index.js')) {
     throw new Error(`Remix server contract missing from ${dockerfile}`);
@@ -201,16 +201,16 @@ for (const dockerfile of ['deployment/Dockerfile.app', 'deployment/Dockerfile.st
 }
 
 for (const path of [
-  'apps/app-web/app/root.tsx',
-  'apps/app-web/app/routes/_index.tsx',
-  'apps/app-web/app/entry.client.tsx',
-  'apps/app-web/app/entry.server.tsx',
-  'apps/app-web/remix.env.d.ts',
-  'apps/studio-web/app/root.tsx',
-  'apps/studio-web/app/routes/_index.tsx',
-  'apps/studio-web/app/entry.client.tsx',
-  'apps/studio-web/app/entry.server.tsx',
-  'apps/studio-web/remix.env.d.ts',
+  'apps/console-web/app/root.tsx',
+  'apps/console-web/app/routes/_index.tsx',
+  'apps/console-web/app/entry.client.tsx',
+  'apps/console-web/app/entry.server.tsx',
+  'apps/console-web/remix.env.d.ts',
+  'apps/forge-web/app/root.tsx',
+  'apps/forge-web/app/routes/_index.tsx',
+  'apps/forge-web/app/entry.client.tsx',
+  'apps/forge-web/app/entry.server.tsx',
+  'apps/forge-web/remix.env.d.ts',
 ]) {
   await access(resolve(root, path));
 }
@@ -222,12 +222,12 @@ console.log(
     requiredDirectories,
     checkedWorkspacePackages: manifests.size,
     checkedRemixSurfaces: remixSurfaceNames,
-    checkedRemixDockerfiles: ['deployment/Dockerfile.app', 'deployment/Dockerfile.studio'],
+    checkedRemixDockerfiles: ['deployment/Dockerfile.console', 'deployment/Dockerfile.forge'],
     forbiddenStandaloneUiPaths: [
-      'apps/app-web/src',
-      'apps/app-web/index.html',
-      'apps/studio-web/src',
-      'apps/studio-web/index.html',
+      'apps/console-web/src',
+      'apps/console-web/index.html',
+      'apps/forge-web/src',
+      'apps/forge-web/index.html',
     ],
     generatedTrackedPaths: 0,
   }),

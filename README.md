@@ -4,11 +4,11 @@ Casioplus یک پلتفرم برای ساخت، انتشار و مصرف Flowه�
 
 ## سطوح محصول
 
-`app.casioplus.com` سطح مصرف و عملیات است: Work Board، Timeline، اجرای publication، Review، Artifact و Memory View. `studio.casioplus.com` سطح ساخت و حکمرانی است: Flow builder، input/output، policy، test، version، publication و تنظیمات Runtime. هر دو surface در MVP فقط با Remix ساخته می‌شوند و از Core/API مشترک استفاده می‌کنند؛ Vite صرفاً compiler رسمی Remix است و UI مستقل Vite/React یا static SPA canonical نیست. مرزهای permission و route از ابتدا مستقل تعریف شده‌اند.
+`app.casioplus.com` سطح مصرف و عملیات است: Work Board، Timeline، اجرای publication، Review، Artifact و Memory View. `forge.casioplus.com` سطح ساخت و حکمرانی است: Flow builder، input/output، policy، test، version، publication و تنظیمات Runtime. هر دو surface در MVP فقط با Remix ساخته می‌شوند و از Core/API مشترک استفاده می‌کنند؛ Vite صرفاً compiler رسمی Remix است و UI مستقل Vite/React یا static SPA canonical نیست. مرزهای permission و route از ابتدا مستقل تعریف شده‌اند.
 
 ## مالکیت داده و runtime boundaries
 
-PostgreSQL تنها منبع حقیقت برای Organization، Workspace، Actor، Work، Flow، FlowVersion، ProcessRun، OperationalEvent، SemanticRecord، KnowledgeClaim، KnowledgeReview، KnowledgePromotion، OrganizationalMemoryItem، Artifact و Audit است. Core/API تنها canonical writer است. App، Studio، Native Worker، n8n، Open WebUI و OpenClaw direct database access ندارند و فقط از contractهای API/event استفاده می‌کنند.
+PostgreSQL تنها منبع حقیقت برای Organization، Workspace، Actor، Work، Flow، FlowVersion، ProcessRun، OperationalEvent، SemanticRecord، KnowledgeClaim، KnowledgeReview، KnowledgePromotion، OrganizationalMemoryItem، Artifact و Audit است. Core/API تنها canonical writer است. Console، Forge، Native Worker، n8n، Open WebUI و OpenClaw direct database access ندارند و فقط از contractهای API/event استفاده می‌کنند.
 
 n8n تنها orchestrator است؛ Open WebUI interaction/model plane است؛ OpenClaw action plane محدود و approval-gated است؛ و Native Diagnosis Worker اولین runtime Golden Flow است. هیچ runtime credential مستقیم PostgreSQL ندارد.
 
@@ -16,9 +16,9 @@ n8n تنها orchestrator است؛ Open WebUI interaction/model plane است؛ O
 
 ```text
 apps/
-  app-web/                 Remix App surface boundary
+  console-web/                 Remix Console surface boundary
     app/                   root، routes و entryهای Remix
-  studio-web/              Remix Studio surface boundary
+  forge-web/              Remix Forge surface boundary
     app/                   root، routes و entryهای Remix
 services/
   core-api/                TypeScript/Node.js Core + API
@@ -87,7 +87,7 @@ pnpm smoke:golden
 
 ## وضعیت فعلی baseline
 
-در baseline فعلی، monorepo، migrationهای ordered با checksum، signed session boundary، membership enforcement، endpointهای Work/Flow/FlowVersion/ProcessRun/RuntimeEvent/Artifact، lifecycle حافظه، Native Diagnosis Worker، قراردادهای n8n/Open WebUI/OpenClaw، smoke script، تست‌های قرارداد/API/auth/worker و CI/CD gated وجود دارد. App و Studio به‌عنوان دو Remix server app واقعی اما non-public هستند؛ object storage واقعی، identity/onboarding production، service identity کامل، queue و deployment staging در فازهای بعدی تکمیل می‌شوند.
+در baseline فعلی، monorepo، migrationهای ordered با checksum، signed session boundary، membership enforcement، endpointهای Work/Flow/FlowVersion/ProcessRun/RuntimeEvent/Artifact، lifecycle حافظه، Native Diagnosis Worker، قراردادهای n8n/Open WebUI/OpenClaw، smoke script، تست‌های قرارداد/API/auth/worker و CI/CD gated وجود دارد. Console و Forge به‌عنوان دو Remix server app واقعی اما non-public هستند؛ object storage واقعی، identity/onboarding production، service identity کامل، queue و deployment staging در فازهای بعدی تکمیل می‌شوند.
 
 ## اسناد canonical
 

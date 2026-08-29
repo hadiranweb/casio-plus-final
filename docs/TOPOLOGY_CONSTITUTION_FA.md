@@ -20,7 +20,7 @@
 | Integration Gateway         | تنها مرز رسمی External App/External Tenant با Core است؛ mapping، invocation، callback، replay، idempotency و audit را کنترل می‌کند و writer موازی نیست.                                                                                |
 | FinOps evidence             | هر usage و cost به Run/operation و pricing version متصل و immutable است؛ P&L کاسیو از TCO کل ecosystem جدا گزارش می‌شود.                                                                                                               |
 | TypeScript MVP              | Core بحرانی با TypeScript/Node.js ساخته می‌شود. Rust در critical path نیست و تنها بعداً، با مزیت اندازه‌پذیر، می‌تواند Worker تخصصی باشد.                                                                                              |
-| دو surface، یک محصول        | App و Studio دو سطح محصول با boundary و UX مستقل‌اند، اما از Core/API و قراردادهای مشترک استفاده می‌کنند.                                                                                                                              |
+| دو surface، یک محصول        | Console و Forge دو سطح محصول با boundary و UX مستقل‌اند، اما از Core/API و قراردادهای مشترک استفاده می‌کنند.                                                                                                                           |
 | tenant-first                | organization و workspace پیش از هر read، search، artifact access یا runtime callback resolve و authorize می‌شوند.                                                                                                                      |
 | memory governed             | OperationalEvent، SemanticRecord، KnowledgeClaim، KnowledgeReview، KnowledgePromotion و OrganizationalMemoryItem مراحل متمایز هستند؛ هر claim بدون review، promotion، provenance، scope و validity وارد retrieval قابل‌اعتماد نمی‌شود. |
 | runtime محدود               | Worker، n8n، Open WebUI و OpenClaw به PostgreSQL credential مستقیم ندارند؛ ارتباطشان با Core از قرارداد typed، identity سرویس و HMAC/nonce/replay control عبور می‌کند.                                                                 |
@@ -32,9 +32,9 @@
 ```text
 casio-plus/
 ├── apps/
-│   ├── app-web/                    # Remix surface مصرف، عملیات و مشاهده
+│   ├── console-web/                    # Remix surface مصرف، عملیات و مشاهده
 │   │   └── app/                     # root، routes و entryهای Remix
-│   └── studio-web/                 # Remix surface ساخت، حکمرانی و publication
+│   └── forge-web/                 # Remix surface ساخت، حکمرانی و publication
 │       └── app/                     # root، routes و entryهای Remix
 ├── services/
 │   ├── core-api/                   # تنها API writer و مرز canonical دامنه
@@ -61,17 +61,17 @@ casio-plus/
 
 ### قرارداد UI قطعی MVP
 
-App و Studio هر دو **Remix application** هستند و routeهای canonical آن‌ها باید در `apps/app-web/app` و `apps/studio-web/app` قرار گیرند. هر surface باید `root.tsx`، `entry.client.tsx`، `entry.server.tsx`، `routes/` و declaration استاندارد `remix.env.d.ts` داشته باشد. UI مستقل مبتنی بر Vite/React، `createRoot`، static SPA server، `src/`، `index.html` قدیمی یا entrypoint جدا از Remix مجاز نیست. استفاده از Vite فقط در نقش compiler رسمی Remix Vite مجاز است؛ runtime، routing، SSR، loader/action و server entry متعلق به Remix است. build باید `build/server` و `build/client` تولید کند و production با `remix-serve` اجرا شود. هر تغییر این قرارداد باید هم‌زمان validator، package scripts، Dockerfile، CI و release manifest را به‌روزرسانی کند.
+Console و Forge هر دو **Remix application** هستند و routeهای canonical آن‌ها باید در `apps/console-web/app` و `apps/forge-web/app` قرار گیرند. هر surface باید `root.tsx`، `entry.client.tsx`، `entry.server.tsx`، `routes/` و declaration استاندارد `remix.env.d.ts` داشته باشد. UI مستقل مبتنی بر Vite/React، `createRoot`، static SPA server، `src/`، `index.html` قدیمی یا entrypoint جدا از Remix مجاز نیست. استفاده از Vite فقط در نقش compiler رسمی Remix Vite مجاز است؛ runtime، routing، SSR، loader/action و server entry متعلق به Remix است. build باید `build/server` و `build/client` تولید کند و production با `remix-serve` اجرا شود. هر تغییر این قرارداد باید هم‌زمان validator، package scripts، Dockerfile، CI و release manifest را به‌روزرسانی کند.
 
 ## dependency direction
 
 مسیر dependency مجاز از پایین به بالا و از surface به Core است؛ reverse import یا circular dependency ممنوع است. در لایهٔ UI، dependency مستقیم به `@remix-run/*` مجاز و dependency به database، migration، runtime داخلی یا secret ممنوع است. deploy production dependency در pnpm 10 تا زمان migration رسمی به injected workspace packages باید با `pnpm --filter ... deploy --prod --legacy` validation شود.
 
 ```text
-apps/app-web ───────┐
+apps/console-web ───────┐
                     ├──> packages/contracts
                     └──> packages/ui
-apps/studio-web ────┘          │
+apps/forge-web ────┘          │
                                ├──> packages/domain
                                └──> packages/knowledge-model
 
@@ -85,25 +85,25 @@ services/open-webui-adapter ──> contracts               (typed interaction/c
 services/openclaw-adapter ────> contracts               (allowlist/approval/idempotency)
 ```
 
-`packages/domain` و `packages/knowledge-model` نباید به Express، `pg`، Drizzle، Redis، browser API یا یک adapter خارجی import داشته باشند. `packages/ui` فقط presentation primitive، token و accessibility helper است و نباید route، session، tenant policy، Core client یا persistence داشته باشد. `packages/contracts` باید transport-neutral بماند و نباید session secret، database client یا runtime credential را در schema خود قرار دهد. App و Studio نباید مستقیماً به database، migration، runtime داخلی یا secret دسترسی داشته باشند.
+`packages/domain` و `packages/knowledge-model` نباید به Express، `pg`، Drizzle، Redis، browser API یا یک adapter خارجی import داشته باشند. `packages/ui` فقط presentation primitive، token و accessibility helper است و نباید route، session، tenant policy، Core client یا persistence داشته باشد. `packages/contracts` باید transport-neutral بماند و نباید session secret، database client یا runtime credential را در schema خود قرار دهد. Console و Forge نباید مستقیماً به database، migration، runtime داخلی یا secret دسترسی داشته باشند.
 
 ## مرز مالکیت داده و write path
 
-| داده                                              | مالک canonical                 | نویسندهٔ مجاز                                           | مصرف‌کنندگان                          |
-| ------------------------------------------------- | ------------------------------ | ------------------------------------------------------- | ------------------------------------- |
-| identity، organization، workspace، membership     | Core/PostgreSQL                | Core/API و identity subsystem آینده                     | App، Studio، audit                    |
-| Work، Flow، FlowVersion، ProcessRun، RuntimeEvent | Core/PostgreSQL                | Core/API                                                | App، Studio، runtime با callback مجاز |
-| Artifact metadata و بعداً object payload          | Core + Object Storage boundary | Core/API یا artifact service تحت authorization Core     | App با signed download/proxy          |
-| SemanticRecord و KnowledgeClaim                   | Core/PostgreSQL                | Core/API پس از provenance check                         | review و governed retrieval           |
-| KnowledgeReview و KnowledgePromotion              | Core/PostgreSQL                | actor مجاز و policy Core                                | retrieval و audit                     |
-| اجرای runtime                                     | Worker خارج از DB              | Core dispatch؛ Worker فقط نتیجهٔ signed را بازمی‌گرداند | Core و App/Studio از طریق Core        |
-| action side-effect                                | سرویس مقصد از طریق adapter     | OpenClaw adapter پس از approval و allowlist             | Core audit و actor مجاز               |
+| داده                                              | مالک canonical                 | نویسندهٔ مجاز                                           | مصرف‌کنندگان                             |
+| ------------------------------------------------- | ------------------------------ | ------------------------------------------------------- | ---------------------------------------- |
+| identity، organization، workspace، membership     | Core/PostgreSQL                | Core/API و identity subsystem آینده                     | Console، Forge، audit                    |
+| Work، Flow، FlowVersion، ProcessRun، RuntimeEvent | Core/PostgreSQL                | Core/API                                                | Console، Forge، runtime با callback مجاز |
+| Artifact metadata و بعداً object payload          | Core + Object Storage boundary | Core/API یا artifact service تحت authorization Core     | Console با signed download/proxy         |
+| SemanticRecord و KnowledgeClaim                   | Core/PostgreSQL                | Core/API پس از provenance check                         | review و governed retrieval              |
+| KnowledgeReview و KnowledgePromotion              | Core/PostgreSQL                | actor مجاز و policy Core                                | retrieval و audit                        |
+| اجرای runtime                                     | Worker خارج از DB              | Core dispatch؛ Worker فقط نتیجهٔ signed را بازمی‌گرداند | Core و Console/Forge از طریق Core        |
+| action side-effect                                | سرویس مقصد از طریق adapter     | OpenClaw adapter پس از approval و allowlist             | Core audit و actor مجاز                  |
 
 هیچ adapter یا Worker حق ندارد SQL، migration یا database credential داشته باشد. Runtime output باید از مسیر Core به event، run state، artifact و memory governance تبدیل شود؛ ثبت مستقیم و بی‌واسطهٔ runtime در PostgreSQL ممنوع است.
 
 ## مرزهای اعتماد و ارتباط
 
-ارتباط انسانی از App یا Studio با Bearer/session معتبر به Core می‌رسد. در نسخهٔ MVP، session امضاشده فقط foundation توسعه و smoke است و login، rotation، revocation، onboarding، invitation و CSRF/cookie policy باید پیش از public launch تکمیل شوند.
+ارتباط انسانی از Console یا Forge با Bearer/session معتبر به Core می‌رسد. در نسخهٔ MVP، session امضاشده فقط foundation توسعه و smoke است و login، rotation، revocation، onboarding، invitation و CSRF/cookie policy باید پیش از public launch تکمیل شوند.
 
 ارتباط Core با Native Worker یک مسیر private service-to-service است و باید دارای `RUNTIME_SHARED_SECRET`، HMAC روی body، timestamp، nonce و replay persistence باشد. human session نباید در production جایگزین service identity شود. Worker فقط payload typed را دریافت می‌کند و نتیجهٔ typed را برمی‌گرداند؛ Core authorization، persistence و state transition را انجام می‌دهد.
 
@@ -111,13 +111,13 @@ services/openclaw-adapter ────> contracts               (allowlist/appro
 
 ## قواعد سطح‌های محصول
 
-### App
+### Console
 
-App برای account، organization، workspace، membership، Flow catalog/publication، Work/Run history، Artifact و Memory view است. App می‌تواند دادهٔ مجاز را از Core بخواند یا command معتبر به Core بفرستد، اما نباید Flow internals، credentials، runtime secret، prompt خصوصی یا topology داخلی Worker را نمایش دهد.
+Console برای account، organization، workspace، membership، Flow catalog/publication، Work/Run history، Artifact و Memory view است. Console می‌تواند دادهٔ مجاز را از Core بخواند یا command معتبر به Core بفرستد، اما نباید Flow internals، credentials، runtime secret، prompt خصوصی یا topology داخلی Worker را نمایش دهد.
 
-### Studio
+### Forge
 
-Studio برای authoring و governance است: input/output schema، policy، version، test، publish، audience و runtime binding. Studio باید به‌جای بازسازی UI عمومی n8n، contract سطح Casioplus را ارائه کند. credential و runtime internals فقط به‌صورت reference/policy قابل‌نمایش‌اند، نه secret یا database detail.
+Forge برای authoring و governance است: input/output schema، policy، version، test، publish، audience و runtime binding. Forge باید به‌جای بازسازی UI عمومی n8n، contract سطح Casioplus را ارائه کند. credential و runtime internals فقط به‌صورت reference/policy قابل‌نمایش‌اند، نه secret یا database detail.
 
 ### Core/API
 
@@ -155,7 +155,7 @@ Gateway باید HMAC را روی raw body و پیش از JSON parsing verify ک
 
 ## قانون فازبندی
 
-ترتیب اجرای بعدی باید این dependency را رعایت کند: **foundation و identity → Core lifecycle و isolation → artifact و asynchronous runtime → publication و participant experience → App/Studio completion → staging و operational hardening → production promotion**. هیچ UI، adapter یا deployment نباید نقص tenant authorization، identity، service identity یا artifact permission را پنهان کند.
+ترتیب اجرای بعدی باید این dependency را رعایت کند: **foundation و identity → Core lifecycle و isolation → artifact و asynchronous runtime → publication و participant experience → Console/Forge completion → staging و operational hardening → production promotion**. هیچ UI، adapter یا deployment نباید نقص tenant authorization، identity، service identity یا artifact permission را پنهان کند.
 
 Rust، Redis/BullMQ، Object Storage و integrationهای بیرونی فقط زمانی وارد critical path می‌شوند که نیازشان concrete، boundaryشان ثبت‌شده و validation قابل‌تکرارشان موجود باشد. افزودن فناوری به‌تنهایی milestone محسوب نمی‌شود؛ evidence عملیاتی و افزایش اندازه‌پذیر launchability معیار پذیرش است.
 

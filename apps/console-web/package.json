@@ -1,9 +1,9 @@
 {
-  "name": "@casioplus/app-web",
+  "name": "@casioplus/console-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Casioplus App control and consumption surface",
+  "description": "Casioplus Console control and consumption surface",
   "scripts": {
     "dev": "remix vite:dev --host",
     "build": "remix vite:build",

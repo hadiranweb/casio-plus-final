@@ -8,22 +8,22 @@
 
 ## سطح‌های محصول
 
-App و Studio دو surface از یک محصول‌اند، نه دو repository یا دو منبع حقیقت.
+Console و Forge دو surface از یک محصول‌اند، نه دو repository یا دو منبع حقیقت.
 
 | Surface  | مسئولیت                                                                                                                                                        |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App      | account، organization/workspace، invitation، Flow catalog/publication، Work و Run history، Artifact، Review Inbox و Memory View                                |
-| Studio   | FlowDefinition، input/output schema، policy، five-axis rubric، runtime binding، test، FlowVersion و publication governance                                     |
+| Console  | account، organization/workspace، invitation، Flow catalog/publication، Work و Run history، Artifact، Review Inbox و Memory View                                |
+| Forge    | FlowDefinition، input/output schema، policy، five-axis rubric، runtime binding، test، FlowVersion و publication governance                                     |
 | Core/API | identity/session edge، membership authorization، canonical lifecycle، validation، idempotency، audit، artifact metadata، review/promotion و governed retrieval |
 
-در MVP، App و Studio دو Remix application در یک monorepo هستند و می‌توانند در یک deployment topology مشترک یا دو deployment unit مستقل اجرا شوند؛ route، permission، data projection و hostname boundary از ابتدا جدا هستند. Vite فقط compiler رسمی Remix Vite است و UI مستقل Vite/React، static SPA server، `createRoot` مستقل و router خارج از Remix مجاز نیست. App و Studio هرگز direct PostgreSQL یا runtime credential ندارند.
+در MVP، Console و Forge دو Remix application در یک monorepo هستند و می‌توانند در یک deployment topology مشترک یا دو deployment unit مستقل اجرا شوند؛ route، permission، data projection و hostname boundary از ابتدا جدا هستند. Vite فقط compiler رسمی Remix Vite است و UI مستقل Vite/React، static SPA server، `createRoot` مستقل و router خارج از Remix مجاز نیست. Console و Forge هرگز direct PostgreSQL یا runtime credential ندارند.
 
 هر surface باید `app/root.tsx`، `app/routes/`، `app/entry.client.tsx` و `app/entry.server.tsx` داشته باشد و با `remix vite:build` به `build/server` و `build/client` برسد. production server با `remix-serve` اجرا می‌شود. loader/action فقط facade سطح UI برای Core/API هستند و نباید authorization، tenant mapping، memory policy یا canonical writer موازی بسازند.
 
 ## runtime boundaries
 
 ```text
-App / Studio
+Console / Forge
        ↓ authenticated typed API
 TypeScript Core/API ───────── PostgreSQL
        ├───────────────────── Redis/BullMQ بعد از نیاز واقعی

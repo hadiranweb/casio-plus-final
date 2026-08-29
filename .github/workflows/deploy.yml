@@ -71,12 +71,12 @@ jobs:
             dockerfile: deployment/Dockerfile.worker
             port: '8090'
           - unit: app
-            app_secret: LIARA_APP_WEB_APP
-            dockerfile: deployment/Dockerfile.app
+            app_secret: LIARA_CONSOLE_WEB_APP
+            dockerfile: deployment/Dockerfile.console
             port: '8080'
-          - unit: studio
-            app_secret: LIARA_STUDIO_WEB_APP
-            dockerfile: deployment/Dockerfile.studio
+          - unit: forge
+            app_secret: LIARA_FORGE_WEB_APP
+            dockerfile: deployment/Dockerfile.forge
             port: '8080'
     steps:
       - name: Checkout
@@ -118,12 +118,12 @@ jobs:
             dockerfile: deployment/Dockerfile.worker
             port: '8090'
           - unit: app
-            app_secret: LIARA_APP_WEB_APP
-            dockerfile: deployment/Dockerfile.app
+            app_secret: LIARA_CONSOLE_WEB_APP
+            dockerfile: deployment/Dockerfile.console
             port: '8080'
-          - unit: studio
-            app_secret: LIARA_STUDIO_WEB_APP
-            dockerfile: deployment/Dockerfile.studio
+          - unit: forge
+            app_secret: LIARA_FORGE_WEB_APP
+            dockerfile: deployment/Dockerfile.forge
             port: '8080'
     steps:
       - name: Checkout

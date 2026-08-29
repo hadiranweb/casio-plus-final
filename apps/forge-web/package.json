@@ -1,9 +1,9 @@
 {
-  "name": "@casioplus/studio-web",
+  "name": "@casioplus/forge-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Casioplus Studio authoring and governance surface",
+  "description": "Casioplus Forge authoring and governance surface",
   "scripts": {
     "dev": "remix vite:dev --host",
     "build": "remix vite:build",

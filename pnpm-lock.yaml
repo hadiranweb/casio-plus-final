@@ -69,7 +69,7 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(tsx@4.23.12)(yaml@2.9.0)
 
-  apps/app-web:
+  apps/console-web:
     dependencies:
       '@casioplus/contracts':
         specifier: workspace:*
@@ -112,7 +112,7 @@ importers:
         specifier: ^6.4.3
         version: 6.4.3(@types/node@24.13.3)(tsx@4.23.12)(yaml@2.9.0)
 
-  apps/studio-web:
+  apps/forge-web:
     dependencies:
       '@casioplus/contracts':
         specifier: workspace:*

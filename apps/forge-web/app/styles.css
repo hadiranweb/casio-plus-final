@@ -44,12 +44,12 @@ a {
   text-decoration: none;
 }
 
-.studio-shell {
+.forge-shell {
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
   min-height: 100vh;
 }
-.studio-sidebar {
+.forge-sidebar {
   display: flex;
   flex-direction: column;
   position: sticky;
@@ -59,13 +59,13 @@ a {
   color: #e8e1ec;
   background: var(--sidebar);
 }
-.studio-brand {
+.forge-brand {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 10px 29px;
 }
-.studio-brand-mark {
+.forge-brand-mark {
   display: grid;
   place-items: center;
   width: 34px;
@@ -76,14 +76,14 @@ a {
   font-family: 'DM Mono', monospace;
   font-size: 15px;
 }
-.studio-brand strong,
-.studio-brand span {
+.forge-brand strong,
+.forge-brand span {
   display: block;
 }
-.studio-brand strong {
+.forge-brand strong {
   font-size: 14px;
 }
-.studio-brand span {
+.forge-brand span {
   margin-top: 3px;
   color: #93889f;
   font-family: 'DM Mono', monospace;
@@ -91,17 +91,17 @@ a {
   letter-spacing: 0.04em;
   direction: ltr;
 }
-.studio-side-label {
+.forge-side-label {
   margin: 0 10px 9px;
   color: #837990;
   font-family: 'DM Mono', monospace;
   font-size: 9px;
   letter-spacing: 0.08em;
 }
-.studio-side-label.secondary {
+.forge-side-label.secondary {
   margin-top: 31px;
 }
-.studio-nav {
+.forge-nav {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -115,23 +115,23 @@ a {
     color 180ms var(--ease-out),
     transform 180ms var(--ease-out);
 }
-.studio-nav span {
+.forge-nav span {
   margin-right: auto;
   color: #635b6c;
   font-family: 'DM Mono', monospace;
   font-size: 8px;
   direction: ltr;
 }
-.studio-nav:hover {
+.forge-nav:hover {
   color: #fff;
   background: #28222f;
   transform: translateX(-2px);
 }
-.studio-nav.active {
+.forge-nav.active {
   color: #f7efff;
   background: #30283c;
 }
-.studio-nav.active svg {
+.forge-nav.active svg {
   color: var(--lavender);
 }
 .node-list {
@@ -161,7 +161,7 @@ a {
 .node-dot.review {
   background: var(--orange);
 }
-.studio-sidebar-footer {
+.forge-sidebar-footer {
   margin-top: auto;
 }
 .private-badge {
@@ -175,7 +175,7 @@ a {
   font-size: 8px;
   direction: ltr;
 }
-.studio-sidebar-footer > a {
+.forge-sidebar-footer > a {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -183,14 +183,14 @@ a {
   color: #b8acbf;
   font-size: 10px;
 }
-.studio-sidebar-footer > a:hover {
+.forge-sidebar-footer > a:hover {
   color: var(--lavender);
 }
 
-.studio-main {
+.forge-main {
   min-width: 0;
 }
-.studio-topbar {
+.forge-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -199,14 +199,14 @@ a {
   border-bottom: 1px solid var(--line);
   background: #fbfaff;
 }
-.studio-breadcrumb {
+.forge-breadcrumb {
   display: flex;
   align-items: center;
   gap: 6px;
   color: #777080;
   font-size: 11px;
 }
-.studio-top-actions {
+.forge-top-actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -225,7 +225,7 @@ a {
   color: #332a40;
   background: #f0ebf5;
 }
-.studio-avatar {
+.forge-avatar {
   display: grid;
   place-items: center;
   width: 30px;
@@ -236,7 +236,7 @@ a {
   font-size: 12px;
   font-weight: 700;
 }
-.studio-session {
+.forge-session {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -248,13 +248,13 @@ a {
   background: #fff;
   font-size: 10px;
 }
-.studio-session svg {
+.forge-session svg {
   color: #8b67b0;
 }
-.studio-session span {
+.forge-session span {
   flex: 1;
 }
-.studio-session input {
+.forge-session input {
   width: 235px;
   padding: 7px 9px;
   border: 1px solid #e8e2ec;
@@ -266,17 +266,17 @@ a {
   font-size: 9px;
   direction: ltr;
 }
-.studio-session button {
+.forge-session button {
   padding: 7px 11px;
   border-radius: 7px;
   color: #3a2d52;
   background: #eee7f8;
   font-size: 9px;
 }
-.studio-session button:hover {
+.forge-session button:hover {
   background: var(--lavender);
 }
-.studio-alert {
+.forge-alert {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -285,46 +285,46 @@ a {
   border-radius: 9px;
   font-size: 10px;
 }
-.studio-alert button {
+.forge-alert button {
   margin-right: auto;
   color: inherit;
   background: transparent;
   font-size: 9px;
   text-decoration: underline;
 }
-.studio-alert.error {
+.forge-alert.error {
   color: #8d4b56;
   background: #fff0f1;
 }
-.studio-alert.success {
+.forge-alert.success {
   color: #477255;
   background: #eff9ea;
 }
-.studio-content {
+.forge-content {
   max-width: 1400px;
   margin: 0 auto;
   padding: 32px 42px 30px;
 }
-.studio-heading {
+.forge-heading {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: 20px;
 }
-.studio-eyebrow {
+.forge-eyebrow {
   color: #9b8da8;
   font-family: 'DM Mono', monospace;
   font-size: 9px;
   letter-spacing: 0.12em;
   direction: ltr;
 }
-.studio-heading h1 {
+.forge-heading h1 {
   margin: 9px 0 6px;
   color: var(--ink);
   font-size: 31px;
   letter-spacing: -0.065em;
 }
-.studio-heading p {
+.forge-heading p {
   margin: 0;
   color: #898291;
   font-size: 11px;
@@ -502,7 +502,7 @@ a {
   gap: 12px;
   margin-top: 16px;
 }
-.studio-button {
+.forge-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -516,25 +516,25 @@ a {
     transform 160ms var(--ease-out),
     filter 160ms var(--ease-out);
 }
-.studio-button:hover {
+.forge-button:hover {
   filter: brightness(1.02);
   transform: translateY(-2px);
 }
-.studio-button:active {
+.forge-button:active {
   transform: scale(0.97);
 }
-.studio-button:disabled,
+.forge-button:disabled,
 .publish-small:disabled {
   cursor: not-allowed;
   opacity: 0.45;
   transform: none;
 }
-.studio-button.primary {
+.forge-button.primary {
   margin-top: 18px;
   color: #fbf5ff;
   background: #60457a;
 }
-.studio-button.secondary {
+.forge-button.secondary {
   color: #635274;
   background: #f0e9f8;
 }
@@ -809,7 +809,7 @@ a {
   font-size: 9px;
   line-height: 1.8;
 }
-.studio-footer-note {
+.forge-footer-note {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -828,20 +828,20 @@ a {
   color: #7f6695;
   background: #ede4f6;
 }
-.studio-footer-note > div:nth-child(2) {
+.forge-footer-note > div:nth-child(2) {
   flex: 1;
 }
-.studio-footer-note strong {
+.forge-footer-note strong {
   color: #625473;
   font-size: 10px;
 }
-.studio-footer-note p {
+.forge-footer-note p {
   margin: 4px 0 0;
   color: #9d949f;
   font-size: 8px;
   line-height: 1.7;
 }
-.studio-footer-note > a {
+.forge-footer-note > a {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -850,18 +850,18 @@ a {
 }
 
 @media (max-width: 980px) {
-  .studio-sidebar {
+  .forge-sidebar {
     width: 205px;
   }
-  .studio-shell {
+  .forge-shell {
     grid-template-columns: 205px minmax(0, 1fr);
   }
-  .studio-content {
+  .forge-content {
     padding-right: 25px;
     padding-left: 25px;
   }
-  .studio-topbar,
-  .studio-session {
+  .forge-topbar,
+  .forge-session {
     margin-right: 25px;
     margin-left: 25px;
   }
@@ -870,38 +870,38 @@ a {
   }
 }
 @media (max-width: 760px) {
-  .studio-shell {
+  .forge-shell {
     display: block;
   }
-  .studio-sidebar {
+  .forge-sidebar {
     position: static;
     width: auto;
     height: auto;
     padding: 15px;
   }
-  .studio-brand {
+  .forge-brand {
     padding-bottom: 14px;
   }
-  .studio-sidebar-footer,
-  .studio-side-label,
+  .forge-sidebar-footer,
+  .forge-side-label,
   .node-list {
     display: none;
   }
-  .studio-nav {
+  .forge-nav {
     display: inline-flex;
     margin: 0 2px;
     padding: 8px;
     font-size: 9px;
   }
-  .studio-sidebar {
+  .forge-sidebar {
     display: block;
     white-space: nowrap;
     overflow-x: auto;
   }
-  .studio-brand {
+  .forge-brand {
     display: flex;
   }
-  .studio-topbar {
+  .forge-topbar {
     min-height: 65px;
     margin: 0;
     padding: 13px 16px;
@@ -909,21 +909,21 @@ a {
   .ghost-button {
     display: none;
   }
-  .studio-session {
+  .forge-session {
     margin: 12px 16px 0;
     flex-wrap: wrap;
   }
-  .studio-session span {
+  .forge-session span {
     flex-basis: calc(100% - 28px);
   }
-  .studio-session input {
+  .forge-session input {
     flex: 1;
     width: auto;
   }
-  .studio-content {
+  .forge-content {
     padding: 24px 16px;
   }
-  .studio-heading {
+  .forge-heading {
     display: block;
   }
   .heading-state {
@@ -950,10 +950,10 @@ a {
   .locked-label {
     display: none;
   }
-  .studio-footer-note {
+  .forge-footer-note {
     align-items: flex-start;
   }
-  .studio-footer-note > a {
+  .forge-footer-note > a {
     display: none;
   }
 }

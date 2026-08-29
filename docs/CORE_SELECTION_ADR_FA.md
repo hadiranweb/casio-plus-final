@@ -6,7 +6,7 @@
 
 ## زمینه و معیار تصمیم
 
-Casioplus باید در سریع‌ترین مسیر قابل‌راه‌اندازی، یک vertical slice عملی از Work، Flow، ProcessRun، SemanticRecord، Review، Organizational Memory، App و Studio ارائه کند. معیار تصمیم، launchability، سرعت iteration، migration قابل‌اعتماد، تست end-to-end، tenant isolation، rollback و قابلیت مشاهدهٔ محصول است؛ نه وفاداری اجباری به یک زبان.
+Casioplus باید در سریع‌ترین مسیر قابل‌راه‌اندازی، یک vertical slice عملی از Work، Flow، ProcessRun، SemanticRecord، Review، Organizational Memory، Console و Forge ارائه کند. معیار تصمیم، launchability، سرعت iteration، migration قابل‌اعتماد، تست end-to-end، tenant isolation، rollback و قابلیت مشاهدهٔ محصول است؛ نه وفاداری اجباری به یک زبان.
 
 ممیزی مسیر Rust نشان داد که وجود کد قابل‌کامپایل به‌تنهایی برای launchability کافی نیست. شکست migration روی database خالی، seed ناسازگار، پوشاندن شکست در CI، placeholder در بخشی از منطق، ناهمگونی tenant boundary و fallbackهای خاموش، ریسک اجرای MVP را بالا می‌برد. این تصمیم به معنای بی‌ارزش‌بودن Rust نیست؛ بلکه به معنای خارج‌کردن dependency اثبات‌نشده از مسیر عرضه است.
 
@@ -23,7 +23,7 @@ Casioplus باید در سریع‌ترین مسیر قابل‌راه‌اند�
 | OrganizationalMemoryItem، Provenance و Evidence    | Core/API + PostgreSQL |
 | Artifact metadata و AuditEvent                     | Core/API + PostgreSQL |
 
-App و Studio دو surface از یک محصول‌اند و در MVP از همین Core/API استفاده می‌کنند. آن‌ها direct database access ندارند. n8n، Open WebUI، OpenClaw و Native Worker runtime هستند، نه مالک وضعیت canonical. هیچ runtime یا container مدل/agent مجاز به نگه‌داشتن credential مستقیم PostgreSQL نیست.
+Console و Forge دو surface از یک محصول‌اند و در MVP از همین Core/API استفاده می‌کنند. آن‌ها direct database access ندارند. n8n، Open WebUI، OpenClaw و Native Worker runtime هستند، نه مالک وضعیت canonical. هیچ runtime یا container مدل/agent مجاز به نگه‌داشتن credential مستقیم PostgreSQL نیست.
 
 ## پشتهٔ پذیرفته‌شده
 
@@ -37,10 +37,10 @@ Native Diagnosis Worker به‌عنوان اولین runtime
 n8n Adapter برای orchestration
 Open WebUI Adapter برای interaction/model plane
 OpenClaw Adapter برای actionهای محدود و approval-gated
-App Web + Studio Web در یک monorepo
+Console Web + Forge Web در یک monorepo
 ```
 
-استفاده از یک host-aware web application برای App و Studio در شروع مجاز است؛ مشروط بر این‌که route، session، permission و data projection مرز دو surface را حفظ کنند. extraction فیزیکی به دو app مستقل فقط پس از تثبیت contractها و build boundary انجام می‌شود.
+استفاده از یک host-aware web application برای Console و Forge در شروع مجاز است؛ مشروط بر این‌که route، session، permission و data projection مرز دو surface را حفظ کنند. extraction فیزیکی به دو app مستقل فقط پس از تثبیت contractها و build boundary انجام می‌شود.
 
 ## تصمیم دربارهٔ نام‌گذاری حافظه
 

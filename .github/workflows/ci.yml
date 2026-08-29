@@ -73,5 +73,5 @@ jobs:
 
       - name: Validate Remix deployment images
         run: |
-          docker build --file deployment/Dockerfile.app --tag casioplus-app-remix-ci .
-          docker build --file deployment/Dockerfile.studio --tag casioplus-studio-remix-ci .
+          docker build --file deployment/Dockerfile.console --tag casioplus-app-remix-ci .
+          docker build --file deployment/Dockerfile.forge --tag casioplus-forge-remix-ci .

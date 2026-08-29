@@ -74,7 +74,7 @@ async function requestJson<T>(
 function SessionBar({ token, onSave }: { token: string; onSave: (value: string) => void }) {
   const [draft, setDraft] = useState(token);
   return (
-    <div className="studio-session">
+    <div className="forge-session">
       <LockKeyhole size={15} />
       <span>
         {token ? 'Session متصل و governance فعال است' : 'برای ویرایش و انتشار Session را وصل کنید'}
@@ -91,7 +91,7 @@ function SessionBar({ token, onSave }: { token: string; onSave: (value: string) 
   );
 }
 
-function Studio() {
+function Forge() {
   const rootData = useRouteLoaderData<typeof rootLoader>('root');
   const apiBase = rootData?.coreApiUrl ?? 'http://localhost:8080';
   const [token, setToken] = useState(() =>
@@ -219,7 +219,7 @@ function Studio() {
           body: JSON.stringify({}),
         },
       );
-      setNotice(`نسخهٔ ${version.version} منتشر شد؛ App می‌تواند از آن استفاده کند.`);
+      setNotice(`نسخهٔ ${version.version} منتشر شد؛ Console می‌تواند از آن استفاده کند.`);
       await loadFlows();
       await loadVersions();
     } catch (requestError) {
@@ -228,29 +228,29 @@ function Studio() {
   };
 
   return (
-    <div className="studio-shell">
-      <aside className="studio-sidebar">
-        <div className="studio-brand">
-          <CasioplusBrandMark className="studio-brand-mark" />
+    <div className="forge-shell">
+      <aside className="forge-sidebar">
+        <div className="forge-brand">
+          <CasioplusBrandMark className="forge-brand-mark" />
           <div>
             <strong>Casioplus</strong>
-            <span>studio / authoring</span>
+            <span>forge / authoring</span>
           </div>
         </div>
-        <div className="studio-side-label">ساخت و حکمرانی</div>
-        <a className="studio-nav active" href="#builder">
+        <div className="forge-side-label">ساخت و حکمرانی</div>
+        <a className="forge-nav active" href="#builder">
           <Workflow size={16} /> Flow builder <span>⌘1</span>
         </a>
-        <a className="studio-nav" href="#versions">
+        <a className="forge-nav" href="#versions">
           <GitBranch size={16} /> Version history <span>⌘2</span>
         </a>
-        <a className="studio-nav" href="#test">
+        <a className="forge-nav" href="#test">
           <Play size={16} /> Test bench <span>⌘3</span>
         </a>
-        <a className="studio-nav" href="#policy">
+        <a className="forge-nav" href="#policy">
           <Settings2 size={16} /> Policy & access
         </a>
-        <div className="studio-side-label secondary">اجزای Flow</div>
+        <div className="forge-side-label secondary">اجزای Flow</div>
         <div className="node-list">
           <div className="node-item">
             <span className="node-dot input" /> ورودی فرم
@@ -265,52 +265,52 @@ function Studio() {
             <span className="node-dot review" /> Review gate
           </div>
         </div>
-        <div className="studio-sidebar-footer">
+        <div className="forge-sidebar-footer">
           <div className="private-badge">
             <LockKeyhole size={13} /> private workspace
           </div>
           <a href={rootData?.appUrl ?? 'http://localhost:5173'} target="_blank" rel="noreferrer">
-            بازگشت به App <ArrowUpLeft size={14} />
+            بازگشت به Console <ArrowUpLeft size={14} />
           </a>
         </div>
       </aside>
 
-      <main className="studio-main">
-        <header className="studio-topbar">
-          <div className="studio-breadcrumb">
+      <main className="forge-main">
+        <header className="forge-topbar">
+          <div className="forge-breadcrumb">
             <span>Workspace / تشخیص کسب‌وکار</span>
             <ChevronDown size={14} />
           </div>
-          <div className="studio-top-actions">
+          <div className="forge-top-actions">
             <button className="ghost-button">
               <CircleHelp size={15} /> راهنما
             </button>
             <button className="ghost-button">
               <Eye size={15} /> Preview
             </button>
-            <div className="studio-avatar">هـ</div>
+            <div className="forge-avatar">هـ</div>
           </div>
         </header>
         <SessionBar token={token} onSave={saveToken} />
         {error && (
-          <div className="studio-alert error">
+          <div className="forge-alert error">
             <X size={15} />
             <span>{error}</span>
             <button onClick={() => setError('')}>بستن</button>
           </div>
         )}
         {notice && (
-          <div className="studio-alert success">
+          <div className="forge-alert success">
             <Check size={15} />
             <span>{notice}</span>
             <button onClick={() => setNotice('')}>بستن</button>
           </div>
         )}
 
-        <div className="studio-content" id="builder">
-          <section className="studio-heading">
+        <div className="forge-content" id="builder">
+          <section className="forge-heading">
             <div>
-              <div className="studio-eyebrow">AUTHORING SURFACE / ۰۱</div>
+              <div className="forge-eyebrow">AUTHORING SURFACE / ۰۱</div>
               <h1>Flow builder</h1>
               <p>جریان تحلیل را با قرارداد ورودی، rubric پنج‌محوره و policy انتشار تعریف کنید.</p>
             </div>
@@ -370,7 +370,7 @@ function Studio() {
                 </div>
                 <div className="identity-actions">
                   <button
-                    className="studio-button secondary"
+                    className="forge-button secondary"
                     onClick={createFlow}
                     disabled={!token || loading}
                   >
@@ -478,7 +478,7 @@ function Studio() {
                   </label>
                 </div>
                 <button
-                  className="studio-button primary"
+                  className="forge-button primary"
                   onClick={createVersion}
                   disabled={!token || !selectedFlow || loading}
                 >
@@ -532,7 +532,7 @@ function Studio() {
                   </span>
                   <div>
                     <b>Publication</b>
-                    <small>App / embed / webhook</small>
+                    <small>Console / embed / webhook</small>
                   </div>
                 </div>
               </div>
@@ -573,14 +573,14 @@ function Studio() {
             </aside>
           </section>
 
-          <section className="studio-footer-note">
+          <section className="forge-footer-note">
             <div className="footer-note-icon">
               <LockKeyhole size={15} />
             </div>
             <div>
               <strong>Governance boundary</strong>
               <p>
-                Studio policy و version را تعریف می‌کند؛ credentialهای runtime اینجا نمایش داده
+                Forge policy و version را تعریف می‌کند؛ credentialهای runtime اینجا نمایش داده
                 نمی‌شوند و فقط Core/API canonical writer است.
               </p>
             </div>
@@ -594,4 +594,4 @@ function Studio() {
   );
 }
 
-export default Studio;
+export default Forge;

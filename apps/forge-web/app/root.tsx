@@ -7,10 +7,10 @@ import stylesheet from './styles.css?url';
 export const links: LinksFunction = () => [{ rel: 'stylesheet', href: stylesheet }];
 
 export const meta: MetaFunction = () => [
-  { title: 'Casioplus Studio' },
+  { title: 'Casioplus Forge' },
   {
     name: 'description',
-    content: 'Casioplus Studio authoring and governance surface',
+    content: 'Casioplus Forge authoring and governance surface',
   },
 ];
 
@@ -19,12 +19,12 @@ export async function loader(_args: LoaderFunctionArgs) {
     publicRuntimeConfigSchema.parse({
       coreApiUrl: process.env.CASIOPLUS_CORE_API_URL ?? 'http://localhost:8080',
       appUrl: process.env.CASIOPLUS_APP_URL ?? 'http://localhost:5173',
-      studioUrl: process.env.CASIOPLUS_STUDIO_URL ?? 'http://localhost:5174',
+      forgeUrl: process.env.CASIOPLUS_FORGE_URL ?? 'http://localhost:5174',
     }),
   );
 }
 
-export default function StudioRoot() {
+export default function ForgeRoot() {
   return (
     <html lang="fa" dir="rtl">
       <head>

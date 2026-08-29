@@ -5,7 +5,7 @@ export const identifierSchema = z.string().uuid();
 export const publicRuntimeConfigSchema = z.object({
   coreApiUrl: z.string().url(),
   appUrl: z.string().url(),
-  studioUrl: z.string().url(),
+  forgeUrl: z.string().url(),
 });
 
 export const organizationContextSchema = z.object({

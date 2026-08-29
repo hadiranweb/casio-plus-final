@@ -8,24 +8,24 @@
 
 ## ۱. اصل ساختاری
 
-Casioplus یک monorepo با یک Core/API canonical و دو Remix surface است. App و Studio دو application مستقل از نظر route، hostname، permission و deployment unit هستند، اما یک محصول واحد را ارائه می‌کنند. PostgreSQL تنها canonical store است و هیچ surface، Worker یا adapter نباید writer یا persistence موازی بسازد.
+Casioplus یک monorepo با یک Core/API canonical و دو Remix surface است. Console و Forge دو application مستقل از نظر route، hostname، permission و deployment unit هستند، اما یک محصول واحد را ارائه می‌کنند. PostgreSQL تنها canonical store است و هیچ surface، Worker یا adapter نباید writer یا persistence موازی بسازد.
 
 ```text
 casioplus/
 ├── apps/
-│   ├── app-web/                         # App / Remix control surface
+│   ├── console-web/                         # Console / Remix control surface
 │   │   ├── app/
 │   │   │   ├── root.tsx                 # document shell، root loader و links/meta
 │   │   │   ├── entry.client.tsx         # Remix hydration
 │   │   │   ├── entry.server.tsx         # Node SSR
 │   │   │   ├── routes/
-│   │   │   │   └── _index.tsx           # route composition و App experience
+│   │   │   │   └── _index.tsx           # route composition و Console experience
 │   │   │   └── styles.css               # surface-specific presentation
 │   │   ├── package.json
 │   │   ├── remix.env.d.ts               # Remix/Vite type declarations
 │   │   ├── tsconfig.json
 │   │   └── vite.config.ts               # فقط Remix Vite compiler
-│   └── studio-web/                      # Studio / Remix authoring surface
+│   └── forge-web/                      # Forge / Remix authoring surface
 │       ├── app/
 │       │   ├── root.tsx
 │       │   ├── entry.client.tsx
@@ -59,13 +59,13 @@ casioplus/
 
 ## ۲. قانون dependency
 
-جهت dependency از surface به shared contract و از Core به domain/knowledge است. App و Studio می‌توانند به `@casioplus/contracts` و `@casioplus/ui` وابسته باشند؛ آن‌ها نباید به `pg`، migration، Worker internals، adapter implementation یا secret وابستگی داشته باشند. Core می‌تواند `@casioplus/contracts`، `@casioplus/domain` و `@casioplus/knowledge-model` را مصرف کند. Worker و adapterها فقط contractهای لازم را می‌گیرند و direct database access ندارند.
+جهت dependency از surface به shared contract و از Core به domain/knowledge است. Console و Forge می‌توانند به `@casioplus/contracts` و `@casioplus/ui` وابسته باشند؛ آن‌ها نباید به `pg`، migration، Worker internals، adapter implementation یا secret وابستگی داشته باشند. Core می‌تواند `@casioplus/contracts`، `@casioplus/domain` و `@casioplus/knowledge-model` را مصرف کند. Worker و adapterها فقط contractهای لازم را می‌گیرند و direct database access ندارند.
 
 ```text
-App Remix ───────┐
+Console Remix ───────┐
                  ├──> @casioplus/contracts ───> Zod transport schemas
                  └──> @casioplus/ui ──────────> presentation primitives
-Studio Remix ────┘
+Forge Remix ────┘
 
 Core/API ────────> contracts + domain + knowledge-model + PostgreSQL
 Worker/Adapters ─> contracts فقط؛ بدون PostgreSQL credential
@@ -88,13 +88,13 @@ export async function loader(_args: LoaderFunctionArgs) {
     publicRuntimeConfigSchema.parse({
       coreApiUrl: process.env.CASIOPLUS_CORE_API_URL ?? 'http://localhost:8080',
       appUrl: process.env.CASIOPLUS_APP_URL ?? 'http://localhost:5173',
-      studioUrl: process.env.CASIOPLUS_STUDIO_URL ?? 'http://localhost:5174',
+      forgeUrl: process.env.CASIOPLUS_FORGE_URL ?? 'http://localhost:5174',
     }),
   );
 }
 ```
 
-`DATABASE_URL`، `SESSION_SECRET` و `RUNTIME_SHARED_SECRET` هرگز نباید در loader response، HTML، browser bundle یا log قرار بگیرند. در baseline توسعه، route می‌تواند public Core URL و URL surface مقابل را از `useRouteLoaderData('root')` دریافت کند؛ session ذخیره‌شده در localStorage فقط foundation توسعه است و برای public identity کافی نیست. `CASIOPLUS_APP_URL` و `CASIOPLUS_STUDIO_URL` فقط public navigation configuration هستند و نباید برای انتقال credential یا tenant authority استفاده شوند.
+`DATABASE_URL`، `SESSION_SECRET` و `RUNTIME_SHARED_SECRET` هرگز نباید در loader response، HTML، browser bundle یا log قرار بگیرند. در baseline توسعه، route می‌تواند public Core URL و URL surface مقابل را از `useRouteLoaderData('root')` دریافت کند؛ session ذخیره‌شده در localStorage فقط foundation توسعه است و برای public identity کافی نیست. `CASIOPLUS_APP_URL` و `CASIOPLUS_FORGE_URL` فقط public navigation configuration هستند و نباید برای انتقال credential یا tenant authority استفاده شوند.
 
 نمونهٔ route composition باید منطق canonical را به Core/API بسپارد:
 
@@ -130,8 +130,8 @@ export default function SurfaceRoute() {
 
 | سطح             | مسئولیت مجاز                                                                                                 | مسئولیت ممنوع                                                                |
 | --------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| App             | account، organization، workspace، Work/Run، publication، Review، Artifact و Memory view                      | direct DB، secret، prompt خصوصی، runtime internals و policy موازی            |
-| Studio          | Flow authoring، input/output، policy، version، test، publish و runtime binding                               | clone رابط ابزار خارجی، credential خام، direct runtime access و writer موازی |
+| Console         | account، organization، workspace، Work/Run، publication، Review، Artifact و Memory view                      | direct DB، secret، prompt خصوصی، runtime internals و policy موازی            |
+| Forge           | Flow authoring، input/output، policy، version، test، publish و runtime binding                               | clone رابط ابزار خارجی، credential خام، direct runtime access و writer موازی |
 | Core/API        | authorization، tenant resolution، lifecycle، audit، artifact metadata، memory governance و usage attribution | پذیرش assertion خارجی، direct trust به client و bypass کردن tenant policy    |
 | Shared packages | schema، type، primitive و invariant قابل‌استفاده                                                             | session issuance، DB client، route ownership و secret                        |
 

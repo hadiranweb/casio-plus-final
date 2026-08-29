@@ -7,7 +7,7 @@
 
 ## ۱. هدف و مرز مدل
 
-این مدل economics را در دو محور مستقل ثبت می‌کند: **پرسونا/سطح مشتری** و **کانال مصرف**. فرد، تیم/استارتاپ و سازمان از یک App، Studio، Core/API، runtime boundary و Memory Control Plane استفاده می‌کنند. تفاوت اقتصادی باید از seat، workspace، ظرفیت، governance، حجم مصرف، SLA، سطح پشتیبانی و اتصال چندمحصولی بیاید؛ صرفاً برچسب «سازمان» نباید بدون ظرفیت یا سرویس متمایز قیمت را افزایش دهد.
+این مدل economics را در دو محور مستقل ثبت می‌کند: **پرسونا/سطح مشتری** و **کانال مصرف**. فرد، تیم/استارتاپ و سازمان از یک Console، Forge، Core/API، runtime boundary و Memory Control Plane استفاده می‌کنند. تفاوت اقتصادی باید از seat، workspace، ظرفیت، governance، حجم مصرف، SLA، سطح پشتیبانی و اتصال چندمحصولی بیاید؛ صرفاً برچسب «سازمان» نباید بدون ظرفیت یا سرویس متمایز قیمت را افزایش دهد.
 
 بسته‌بندی پیشنهادی سه لایه دارد:
 
@@ -17,13 +17,13 @@ Platform subscription
 + Usage metering
 ```
 
-`External Studio/Gateway` یک add-on یا capability قابل‌فعال‌سازی است و نباید با ساختن محصول یا Studio جداگانه پیاده شود. context مدل، retrieval overage، storage overage و external sync باید جداگانه قابل‌اندازه‌گیری باشند.
+`External Forge/Gateway` یک add-on یا capability قابل‌فعال‌سازی است و نباید با ساختن محصول یا Forge جداگانه پیاده شود. context مدل، retrieval overage، storage overage و external sync باید جداگانه قابل‌اندازه‌گیری باشند.
 
 ## ۲. پرسونا و ظرفیت استاندارد
 
 | پرسونا        | تجربهٔ اصلی                                   | seat | workspace | حافظهٔ canonical | projection کاسیو |   audit | retrieval/month | write/month | promotion/month | context/retrieval |
 | ------------- | --------------------------------------------- | ---: | --------: | ---------------: | ---------------: | ------: | --------------: | ----------: | --------------: | ----------------: |
-| فرد / Solo    | App و Studio شخصی، self-service               |    1 |         1 |             1 GB |             1 GB | 0.25 GB |           2,000 |         300 |              20 |       1,500 token |
+| فرد / Solo    | Console و Forge شخصی، self-service            |    1 |         1 |             1 GB |             1 GB | 0.25 GB |           2,000 |         300 |              20 |       1,500 token |
 | تیم / Startup | همکاری، shared workspace و review پایه        |    5 |         2 |             5 GB |             6 GB |  0.5 GB |          10,000 |       1,500 |             100 |       2,000 token |
 | سازمان        | چندتیمی، policy، audit، SLA و اتصال چند محصول |   25 |         5 |            20 GB |            24 GB |    1 GB |          30,000 |       5,000 |             500 |       2,500 token |
 
@@ -31,12 +31,12 @@ Platform subscription
 
 ## ۳. اجزای قیمت پیشنهادی سناریویی
 
-| جزء                            | فرد | تیم/Startup | سازمان | توضیح                                            |
-| ------------------------------ | --: | ----------: | -----: | ------------------------------------------------ |
-| Platform fee                   | $19 |         $79 |   $299 | App و Studio control plane                       |
-| Casio-managed Memory Add-on    |  $9 |         $39 |   $129 | ظرفیت، governance و operations                   |
-| Hybrid Memory Add-on           | $15 |         $59 |   $199 | projection، remote retrieval و sync              |
-| External Studio/Gateway add-on |  $0 |         $29 |    $99 | endpoint، signing، callback، rate limit و policy |
+| جزء                           | فرد | تیم/Startup | سازمان | توضیح                                            |
+| ----------------------------- | --: | ----------: | -----: | ------------------------------------------------ |
+| Platform fee                  | $19 |         $79 |   $299 | Console و Forge control plane                    |
+| Casio-managed Memory Add-on   |  $9 |         $39 |   $129 | ظرفیت، governance و operations                   |
+| Hybrid Memory Add-on          | $15 |         $59 |   $199 | projection، remote retrieval و sync              |
+| External Forge/Gateway add-on |  $0 |         $29 |    $99 | endpoint، signing، callback، rate limit و policy |
 
 در unit economics، `configured_core_price` باید به‌صورت شفاف از `platform_fee + memory_fee + external_gateway_fee` ساخته شود. نام مبهم `core_price` نباید بین مدل «Memory Add-on تنها» و مدل «کل بستهٔ platform + memory + gateway» مشترک استفاده شود.
 

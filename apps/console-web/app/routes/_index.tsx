@@ -121,7 +121,7 @@ function SessionPanel({
       <div className="eyebrow">اتصال امن به Core</div>
       <h2>{token ? 'Session متصل است' : 'برای شروع Session را وصل کنید'}</h2>
       <p>
-        App فقط با Bearer session امضاشده به Core متصل می‌شود. هیچ tenant header خامی در این سطح
+        Console فقط با Bearer session امضاشده به Core متصل می‌شود. هیچ tenant header خامی در این سطح
         ارسال نمی‌شود.
       </p>
       <div className="session-input-row">
@@ -145,7 +145,7 @@ function SessionPanel({
   );
 }
 
-function App() {
+function Console() {
   const rootData = useRouteLoaderData<typeof rootLoader>('root');
   const apiBase = rootData?.coreApiUrl ?? 'http://localhost:8080';
   const [token, setToken] = useState(() =>
@@ -293,12 +293,12 @@ function App() {
             <small>{connected ? 'connected' : 'offline'}</small>
           </div>
           <a
-            className="studio-link"
-            href={rootData?.studioUrl ?? 'http://localhost:5174'}
+            className="forge-link"
+            href={rootData?.forgeUrl ?? 'http://localhost:5174'}
             target="_blank"
             rel="noreferrer"
           >
-            رفتن به Studio <ArrowUpLeft size={14} />
+            رفتن به Forge <ArrowUpLeft size={14} />
           </a>
         </div>
       </aside>
@@ -306,7 +306,7 @@ function App() {
       <main className="main-content" id="overview">
         <header className="topbar">
           <div>
-            <span className="breadcrumb">Casioplus / App / نمای کلی</span>
+            <span className="breadcrumb">Casioplus / Console / نمای کلی</span>
             <h1>
               صبح بخیر، هادی <span className="wave">—</span>
             </h1>
@@ -557,7 +557,7 @@ function App() {
           </section>
 
           <footer className="page-footer">
-            <span>Casioplus / App surface</span>
+            <span>Casioplus / Console surface</span>
             <span>
               Core API · PostgreSQL canonical · {connected ? 'authenticated' : 'not authenticated'}
             </span>
@@ -568,4 +568,4 @@ function App() {
   );
 }
 
-export default App;
+export default Console;

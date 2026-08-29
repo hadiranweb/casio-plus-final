@@ -8,22 +8,22 @@
 
 ## ماتریس تصمیم
 
-| موضوع                                                | تصمیم                               | اثر در Casioplus                                                       |
-| ---------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------- |
-| یک Studio و Memory Control Plane مرکزی برای چند سایت | پذیرفته                             | کنترل مرکزی است، اما namespace و مالکیت هر organization جداست          |
-| ExternalApp و ExternalTenant                         | پذیرفته                             | mapping در سمت server به organization/workspace انجام می‌شود           |
-| Memory namespace خصوصی با default deny               | پذیرفته و release gate              | هیچ retrieval فقط با similarity، source app یا شناسهٔ client مجاز نیست |
-| MemoryGrant محدود و قابل‌لغو                         | پذیرفته                             | purpose، Flow، kind، mode، زمان اعتبار، approver و audit لازم است      |
-| Knowledge Pack نسخه‌دار                              | پذیرفته به‌عنوان مدل sharing ترجیحی | اشتراک pack از raw namespace جدا می‌ماند                               |
-| چهار storage mode                                    | پذیرفته در contract                 | MVP با `casio_managed`؛ مدل‌های دیگر مرحله‌ای فعال می‌شوند             |
-| Memory Broker                                        | پذیرفته                             | تنها مسیر access-check و query است؛ writer مستقل نیست                  |
-| HMAC روی raw body، timestamp، nonce و key rotation   | پذیرفته و اجباری                    | verify پیش از parsing، با replay persistence                           |
-| callback allowlist و عدم اعتماد به URL body          | پذیرفته و اجباری                    | URL مقصد فقط از mapping/policy سمت server می‌آید                       |
-| outbox/dispatcher و retry                            | پذیرفته، backlog اجرایی             | برای failure isolation و restart durability لازم است                   |
-| Cost Attribution immutable                           | پذیرفته                             | هر usage به Run/operation و `pricingVersion` متصل می‌شود               |
-| قیمت‌های $129، $199 و floorهای سناریویی              | فقط فرض برنامه‌ریزی                 | price list یا تصمیم commercial فعلی نیستند                             |
-| Product-managed و Hybrid                             | contract از ابتدا؛ activation بعدی  | raw/source ownership و deletion propagation باید اثبات شود             |
-| Customer-managed/Dedicated                           | future-compatible                   | برای MVP ساخته نمی‌شود، اما contract نباید آن را ناممکن کند            |
+| موضوع                                               | تصمیم                               | اثر در Casioplus                                                       |
+| --------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| یک Forge و Memory Control Plane مرکزی برای چند سایت | پذیرفته                             | کنترل مرکزی است، اما namespace و مالکیت هر organization جداست          |
+| ExternalApp و ExternalTenant                        | پذیرفته                             | mapping در سمت server به organization/workspace انجام می‌شود           |
+| Memory namespace خصوصی با default deny              | پذیرفته و release gate              | هیچ retrieval فقط با similarity، source app یا شناسهٔ client مجاز نیست |
+| MemoryGrant محدود و قابل‌لغو                        | پذیرفته                             | purpose، Flow، kind، mode، زمان اعتبار، approver و audit لازم است      |
+| Knowledge Pack نسخه‌دار                             | پذیرفته به‌عنوان مدل sharing ترجیحی | اشتراک pack از raw namespace جدا می‌ماند                               |
+| چهار storage mode                                   | پذیرفته در contract                 | MVP با `casio_managed`؛ مدل‌های دیگر مرحله‌ای فعال می‌شوند             |
+| Memory Broker                                       | پذیرفته                             | تنها مسیر access-check و query است؛ writer مستقل نیست                  |
+| HMAC روی raw body، timestamp، nonce و key rotation  | پذیرفته و اجباری                    | verify پیش از parsing، با replay persistence                           |
+| callback allowlist و عدم اعتماد به URL body         | پذیرفته و اجباری                    | URL مقصد فقط از mapping/policy سمت server می‌آید                       |
+| outbox/dispatcher و retry                           | پذیرفته، backlog اجرایی             | برای failure isolation و restart durability لازم است                   |
+| Cost Attribution immutable                          | پذیرفته                             | هر usage به Run/operation و `pricingVersion` متصل می‌شود               |
+| قیمت‌های $129، $199 و floorهای سناریویی             | فقط فرض برنامه‌ریزی                 | price list یا تصمیم commercial فعلی نیستند                             |
+| Product-managed و Hybrid                            | contract از ابتدا؛ activation بعدی  | raw/source ownership و deletion propagation باید اثبات شود             |
+| Customer-managed/Dedicated                          | future-compatible                   | برای MVP ساخته نمی‌شود، اما contract نباید آن را ناممکن کند            |
 
 ## نکات معماری استخراج‌شده
 

@@ -18,14 +18,14 @@
 
 ## ۲. مدل محصول: یک Control Plane، دو surface، چند محصول متصل
 
-Casioplus یک Control Plane مرکزی دارد که App، Studio، Core/API، Memory Broker، Integration Gateway، policy، audit و cost metering را در مرزهای مشخص مدیریت می‌کند. App برای مصرف و عملیات است؛ Studio برای authoring و governance است؛ محصولات ثالث و سایت‌های متعدد از طریق قرارداد Integration Gateway به Flowهای منتشرشده متصل می‌شوند.
+Casioplus یک Control Plane مرکزی دارد که Console، Forge، Core/API، Memory Broker، Integration Gateway، policy، audit و cost metering را در مرزهای مشخص مدیریت می‌کند. Console برای مصرف و عملیات است؛ Forge برای authoring و governance است؛ محصولات ثالث و سایت‌های متعدد از طریق قرارداد Integration Gateway به Flowهای منتشرشده متصل می‌شوند.
 
-> مرکزی‌بودن Studio و Memory Control Plane به معنی مشترک‌بودن حافظه نیست. کنترل مرکزی است، اما مالکیت، namespace، policy و دسترسی حافظه برای هر سازمان مستقل و پیش‌فرض خصوصی است.
+> مرکزی‌بودن Forge و Memory Control Plane به معنی مشترک‌بودن حافظه نیست. کنترل مرکزی است، اما مالکیت، namespace، policy و دسترسی حافظه برای هر سازمان مستقل و پیش‌فرض خصوصی است.
 
 | سطح                 | مسئولیت                                                                                            | ممنوعیت اصلی                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| App                 | account، organization، workspace، catalog/publication، Work/Run، Artifact، review و Memory view    | نمایش credential، prompt خصوصی یا runtime internals                |
-| Studio              | Flow authoring، schema، policy، version، test، publish، audience و runtime binding                 | تبدیل‌شدن به clone عمومی n8n یا نمایش secret                       |
+| Console             | account، organization، workspace، catalog/publication، Work/Run، Artifact، review و Memory view    | نمایش credential، prompt خصوصی یا runtime internals                |
+| Forge               | Flow authoring، schema، policy، version، test، publish، audience و runtime binding                 | تبدیل‌شدن به clone عمومی n8n یا نمایش secret                       |
 | Core/API            | تنها تصمیم‌گیرندهٔ authorization و canonical writer برای PostgreSQL، lifecycle، audit و governance | دورزدن tenant policy یا پذیرفتن assertion خارجی به‌عنوان authority |
 | Memory Broker       | resolve و enforce کردن namespace، grant، scope، sensitivity، validity و result minimization        | retrieval بر اساس similarity یا شناسهٔ ارسالی به‌تنهایی            |
 | Integration Gateway | مرز رسمی identity، invocation، callback، idempotency، mapping و audit بین محصول خارجی و Core       | direct database mutation یا اعتماد به callback URL داخل payload    |
@@ -54,11 +54,11 @@ Core/API ──private typed dispatch──> Native Worker / approved runtime
 Core/API ──typed contract──────────> n8n / Open WebUI / OpenClaw adapters
 ```
 
-Dependency direction همچنان همان قانون `TOPOLOGY_CONSTITUTION_FA.md` است: App و Studio به contract و Core API متصل می‌شوند؛ Core به domain، knowledge model و PostgreSQL متصل است؛ Worker و adapterها database credential ندارند. Integration Gateway و Memory Broker در مسیر Core/API یا service boundary تحت مالکیت Core قرار می‌گیرند و نباید writer موازی بسازند.
+Dependency direction همچنان همان قانون `TOPOLOGY_CONSTITUTION_FA.md` است: Console و Forge به contract و Core API متصل می‌شوند؛ Core به domain، knowledge model و PostgreSQL متصل است؛ Worker و adapterها database credential ندارند. Integration Gateway و Memory Broker در مسیر Core/API یا service boundary تحت مالکیت Core قرار می‌گیرند و نباید writer موازی بسازند.
 
 ### قرارداد UI قطعی MVP: Remix-only
 
-App و Studio فقط Remix application هستند. routeها، root، server entry و client entry باید در `apps/app-web/app` و `apps/studio-web/app` قرار بگیرند. scripts رسمی هر دو surface عبارت‌اند از `remix vite:dev`، `remix vite:build` و `remix-serve ./build/server/index.js`. Vite در این پروژه فقط compiler رسمی Remix Vite است؛ Vite/React standalone، `createRoot` مستقل، static SPA server، routing خارج از Remix و dependency مربوط به plugin مستقل React مجاز نیست.
+Console و Forge فقط Remix application هستند. routeها، root، server entry و client entry باید در `apps/console-web/app` و `apps/forge-web/app` قرار بگیرند. scripts رسمی هر دو surface عبارت‌اند از `remix vite:dev`، `remix vite:build` و `remix-serve ./build/server/index.js`. Vite در این پروژه فقط compiler رسمی Remix Vite است؛ Vite/React standalone، `createRoot` مستقل، static SPA server، routing خارج از Remix و dependency مربوط به plugin مستقل React مجاز نیست.
 
 loader/action یا BFF surface فقط facade برای Core/API است و نباید authorization، tenant mapping، ownership، memory policy یا usage ledger موازی بسازد. خروجی loader مانند پاسخ API عمومی تلقی می‌شود؛ secret، session خام، assertion خارجی و دادهٔ خارج از scope نباید به browser برگردد. `build/server` و `build/client` generated هستند و باید خارج از Git بمانند. primitiveهای مشترک presentation در `@casioplus/ui` و schemaهای transport در `@casioplus/contracts` نگهداری می‌شوند؛ هیچ‌کدام مالک route، session، persistence، authorization یا Core client نیستند. جزئیات tree و baseline code در `REPOSITORY_STRUCTURE_AND_REMIX_BASELINE_FA.md` ثبت شده است.
 
@@ -246,9 +246,9 @@ context، storage، retrieval، sync و export باید metered و قابل مش
 
 ## ۱۲. مدل اقتصادی پرسونا و حافظه
 
-Casioplus باید economics را بر دو محور مستقل مدل کند: پرسونا/سطح مشتری و کانال مصرف. فرد، تیم/Startup و سازمان از یک App، Studio، Core/API و Memory Control Plane استفاده می‌کنند؛ تفاوت اقتصادی از seat، workspace، ظرفیت، governance، SLA، پشتیبانی، حجم مصرف و اتصال چندمحصولی می‌آید، نه از ساختن محصول یا Studio جداگانه.
+Casioplus باید economics را بر دو محور مستقل مدل کند: پرسونا/سطح مشتری و کانال مصرف. فرد، تیم/Startup و سازمان از یک Console، Forge، Core/API و Memory Control Plane استفاده می‌کنند؛ تفاوت اقتصادی از seat، workspace، ظرفیت، governance، SLA، پشتیبانی، حجم مصرف و اتصال چندمحصولی می‌آید، نه از ساختن محصول یا Forge جداگانه.
 
-بسته‌بندی canonical سه جزء دارد: `Platform subscription` برای App/Studio، `Memory entitlement` برای ظرفیت و governance، و `Usage metering` برای context، retrieval، storage، sync و export. `External Studio/Gateway` یک add-on قابل‌فعال‌سازی است و قیمت‌های scenario آن سند، price list یا entitlement hard-coded نیستند. پروفایل‌های planning فرد، تیم و سازمان در [`PERSONA_MEMORY_ECONOMICS_FA.md`](PERSONA_MEMORY_ECONOMICS_FA.md) ثبت شده‌اند.
+بسته‌بندی canonical سه جزء دارد: `Platform subscription` برای Console/Forge، `Memory entitlement` برای ظرفیت و governance، و `Usage metering` برای context، retrieval، storage، sync و export. `External Forge/Gateway` یک add-on قابل‌فعال‌سازی است و قیمت‌های scenario آن سند، price list یا entitlement hard-coded نیستند. پروفایل‌های planning فرد، تیم و سازمان در [`PERSONA_MEMORY_ECONOMICS_FA.md`](PERSONA_MEMORY_ECONOMICS_FA.md) ثبت شده‌اند.
 
 قواعد economics اجباری‌اند: همهٔ usage/cost باید immutable و به organization، External App/Tenant، workspace، Flow/Version/Run، namespace، operation، runtime/model، token/byte/latency، unit cost، shared allocation، payer، billable amount و `pricingVersion` وصل باشد؛ P&L کاسیو از TCO کل ecosystem جدا گزارش شود؛ Hybrid product-side cost صریح و قراردادی باشد؛ و هیچ عدد سناریویی بدون source، reference date و formula chain در UI یا billing نهایی وارد نشود.
 
@@ -291,7 +291,7 @@ pnpm validate:topology
 pnpm build
 ```
 
-برای تغییرهای migration/runtime/integration، migration restart، Golden Flow، cross-tenant negative tests، replay/duplicate tests، timeout/retry tests، revoke/deletion tests و cost attribution rebuild نیز لازم است. برای تغییرهای UI یا Dockerfile، build واقعی Remix و Docker build همان surface نیز باید موفق شود. `pnpm --filter @casioplus/app-web deploy --prod --legacy` و معادل Studio باید در صورت تغییر deployment contract قابل‌اثبات باشند. `|| true` برای gateهای امنیتی، isolation، replay، callback، deletion یا financial correctness ممنوع است.
+برای تغییرهای migration/runtime/integration، migration restart، Golden Flow، cross-tenant negative tests، replay/duplicate tests، timeout/retry tests، revoke/deletion tests و cost attribution rebuild نیز لازم است. برای تغییرهای UI یا Dockerfile، build واقعی Remix و Docker build همان surface نیز باید موفق شود. `pnpm --filter @casioplus/console-web deploy --prod --legacy` و معادل Forge باید در صورت تغییر deployment contract قابل‌اثبات باشند. `|| true` برای gateهای امنیتی، isolation، replay، callback، deletion یا financial correctness ممنوع است.
 
 ## ۱۶. وضعیت پیاده‌سازی و مرز ادعا
 

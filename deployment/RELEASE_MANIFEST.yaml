@@ -10,8 +10,8 @@ units:
     port: 8080
     health: /healthz
     canonical_store: postgres
-  app-web:
-    path: apps/app-web
+  console-web:
+    path: apps/console-web
     status: mvp-surface
     public: false
     host: app.casioplus.com
@@ -19,18 +19,18 @@ units:
     compiler: remix-vite
     runtime: remix-serve
     build_output: build/server + build/client
-    dockerfile: deployment/Dockerfile.app
+    dockerfile: deployment/Dockerfile.console
     docker_build_validation: ci
-  studio-web:
-    path: apps/studio-web
+  forge-web:
+    path: apps/forge-web
     status: mvp-surface
     public: false
-    host: studio.casioplus.com
+    host: forge.casioplus.com
     framework: remix
     compiler: remix-vite
     runtime: remix-serve
     build_output: build/server + build/client
-    dockerfile: deployment/Dockerfile.studio
+    dockerfile: deployment/Dockerfile.forge
     docker_build_validation: ci
   native-diagnosis-worker:
     path: services/native-diagnosis-worker

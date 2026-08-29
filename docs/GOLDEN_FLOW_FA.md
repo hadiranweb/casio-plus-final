@@ -59,7 +59,7 @@ Score range، weight و rubric باید در FlowVersion ذخیره شوند و 
 
 ## ۳. فهرست taskهای اجرایی
 
-### A. انتشار Flow در Studio
+### A. انتشار Flow در Forge
 
 | شناسه  | task                                                         | خروجی قابل‌بررسی                       |
 | ------ | ------------------------------------------------------------ | -------------------------------------- |
@@ -72,7 +72,7 @@ Score range، weight و rubric باید در FlowVersion ذخیره شوند و 
 | GF-A07 | FlowVersion به‌صورت immutable ساخته و test می‌شود            | test run و validation result           |
 | GF-A08 | Owner یا Admin آن را publish می‌کند                          | Publication با audience و status       |
 
-### B. ایجاد Work و ProcessRun از App/publication
+### B. ایجاد Work و ProcessRun از Console/publication
 
 | شناسه  | task                                                                            | خروجی قابل‌بررسی                 |
 | ------ | ------------------------------------------------------------------------------- | -------------------------------- |
@@ -106,7 +106,7 @@ Score range، weight و rubric باید در FlowVersion ذخیره شوند و 
 | GF-D03 | artifact HTML ساخته و scoped download آماده می‌شود          | signed URL یا proxy مجاز                |
 | GF-D04 | `output_produced` SemanticRecord ثبت می‌شود                 | source به artifact و run متصل           |
 | GF-D05 | Work/Run terminal state به succeeded یا failed منتقل می‌شود | transition معتبر و immutable            |
-| GF-D06 | App timeline و notification قابل‌مشاهده می‌شود              | status و correlation در UI              |
+| GF-D06 | Console timeline و notification قابل‌مشاهده می‌شود          | status و correlation در UI              |
 
 PDF بخشی از قرارداد آینده است و تا زمانی که renderer پایدار، فونت/RTL، artifact permission و regression test نداشته باشد، blocker مسیر پایه نیست. در release اول JSON و HTML کافی‌اند؛ خروجی PDF پس از اثبات فنی فعال می‌شود.
 
@@ -123,11 +123,11 @@ PDF بخشی از قرارداد آینده است و تا زمانی که rende
 | GF-E07 | reject یا correction بدون overwrite raw record انجام می‌شود       | immutable history               |
 | GF-E08 | governed retrieval item را فقط برای scope مجاز برمی‌گرداند        | permission-first search         |
 
-### F. App و مشاهدهٔ نتیجه
+### F. Console و مشاهدهٔ نتیجه
 
 | شناسه  | task                                                          | خروجی قابل‌بررسی               |
 | ------ | ------------------------------------------------------------- | ------------------------------ |
-| GF-F01 | App work list را با tenant scope نشان می‌دهد                  | no cross-workspace rows        |
+| GF-F01 | Console work list را با tenant scope نشان می‌دهد              | no cross-workspace rows        |
 | GF-F02 | Run detail status، events خلاصه و artifact را نشان می‌دهد     | raw secret/runtime detail حذف  |
 | GF-F03 | artifact download با permission مجدد انجام می‌شود             | scoped access                  |
 | GF-F04 | review inbox برای Reviewer نمایش داده می‌شود                  | candidate state واضح           |

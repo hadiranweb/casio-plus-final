@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_URL="${CASIOPLUS_CORE_API_URL:-https://api.example.test}"
 APP_PORT="${CASIOPLUS_APP_SMOKE_PORT:-4173}"
-STUDIO_PORT="${CASIOPLUS_STUDIO_SMOKE_PORT:-4174}"
+FORGE_PORT="${CASIOPLUS_FORGE_SMOKE_PORT:-4174}"
 PIDS=()
 
 cleanup() {
@@ -27,8 +27,8 @@ start_surface() {
   PIDS+=("$!")
 }
 
-start_surface app-web "$APP_PORT"
-start_surface studio-web "$STUDIO_PORT"
+start_surface console-web "$APP_PORT"
+start_surface forge-web "$FORGE_PORT"
 
 check_surface() {
   local surface="$1"
@@ -47,5 +47,5 @@ check_surface() {
   printf 'REMIX_SSR_SMOKE_PASS %s\n' "$surface"
 }
 
-check_surface app-web "$APP_PORT"
-check_surface studio-web "$STUDIO_PORT"
+check_surface console-web "$APP_PORT"
+check_surface forge-web "$FORGE_PORT"

@@ -20,7 +20,7 @@
 
 ## آنچه به‌عنوان foundation منتقل شد
 
-معماری پایهٔ TypeScript/Node.js + PostgreSQL canonical، monorepo pnpm، Core/API Express، migration runner ordered با checksum، domain contracts، App و Studio، Native Diagnosis Worker، adapter contractهای n8n/Open WebUI/OpenClaw، smokeهای Golden Flow، Dockerfileهای deployment، CI/CD workflowها و اسناد فارسی Charter، Golden Flow، Threat Model، Memory Taxonomy و Release Readiness در این baseline حضور دارند.
+معماری پایهٔ TypeScript/Node.js + PostgreSQL canonical، monorepo pnpm، Core/API Express، migration runner ordered با checksum، domain contracts، Console و Forge، Native Diagnosis Worker، adapter contractهای n8n/Open WebUI/OpenClaw، smokeهای Golden Flow، Dockerfileهای deployment، CI/CD workflowها و اسناد فارسی Charter، Golden Flow، Threat Model، Memory Taxonomy و Release Readiness در این baseline حضور دارند.
 
 این انتقال به معنای production-ready بودن محصول نیست. قابلیت‌های موجود، یک **vertical slice قابل‌اجرا و قابل‌اعتبارسنجی** هستند. login/onboarding واقعی، service identity کامل، replay protection پایدار، asynchronous queue، artifact object storage، publication participant flow، isolation integration tests و staging واقعی باید در فازهای بعدی ساخته و با evidence پذیرفته شوند.
 
