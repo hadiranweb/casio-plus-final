@@ -36,9 +36,6 @@ ALTER TABLE workspaces
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'archived'));
 
-ALTER TABLE organizations
-  ADD CONSTRAINT organizations_id_tenant_unique UNIQUE (id, id);
-
 ALTER TABLE workspaces
   ADD CONSTRAINT workspaces_organization_id_id_unique UNIQUE (organization_id, id);
 
