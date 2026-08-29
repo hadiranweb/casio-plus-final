@@ -1,0 +1,69 @@
+version: 1
+product: casioplus
+architecture: typescript-core-postgres-mvp
+readiness: core-vertical-slice-not-public-ready
+units:
+  core-api:
+    path: services/core-api
+    status: vertical-slice
+    public: false
+    port: 8080
+    health: /healthz
+    canonical_store: postgres
+  app-web:
+    path: apps/app-web
+    status: mvp-surface
+    public: false
+    host: app.casioplus.com
+    framework: remix
+    compiler: remix-vite
+    runtime: remix-serve
+    build_output: build/server + build/client
+    dockerfile: deployment/Dockerfile.app
+    docker_build_validation: ci
+  studio-web:
+    path: apps/studio-web
+    status: mvp-surface
+    public: false
+    host: studio.casioplus.com
+    framework: remix
+    compiler: remix-vite
+    runtime: remix-serve
+    build_output: build/server + build/client
+    dockerfile: deployment/Dockerfile.studio
+    docker_build_validation: ci
+  native-diagnosis-worker:
+    path: services/native-diagnosis-worker
+    public: false
+    trigger: queue
+  n8n-adapter:
+    path: services/n8n-adapter
+    public: false
+  open-webui-adapter:
+    path: services/open-webui-adapter
+    public: false
+  openclaw-adapter:
+    path: services/openclaw-adapter
+    public: false
+resources:
+  postgres:
+    purpose: canonical
+    direct_runtime_access: false
+  redis:
+    purpose: queue-and-rate-limit
+  object_storage:
+    purpose: artifact-by-reference
+promotion:
+  staging_required: true
+  production_environment_protected: true
+  required_evidence:
+    - migration-on-empty-database
+    - core-health
+    - tenant-isolation
+    - golden-flow-e2e
+    - artifact-delivery
+    - rollback-pointer
+constraints:
+  mysql_legacy_dual_write: false
+  rust_critical_path: false
+  direct_runtime_database_credentials: false

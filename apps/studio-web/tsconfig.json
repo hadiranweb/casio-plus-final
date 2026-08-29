@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node", "@remix-run/node", "@remix-run/dev", "vite/client"]
+  },
+  "include": ["app", "remix.env.d.ts", "vite.config.ts"]
+}

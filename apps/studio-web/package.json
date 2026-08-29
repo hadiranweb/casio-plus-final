@@ -1,0 +1,30 @@
+{
+  "name": "@casioplus/studio-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Casioplus Studio authoring and governance surface",
+  "scripts": {
+    "dev": "remix vite:dev --host",
+    "build": "remix vite:build",
+    "start": "remix-serve ./build/server/index.js",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@casioplus/contracts": "workspace:*",
+    "@casioplus/ui": "workspace:*",
+    "@remix-run/node": "2.17.5",
+    "@remix-run/react": "2.17.5",
+    "@remix-run/serve": "2.17.5",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "2.17.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3"
+  }
+}

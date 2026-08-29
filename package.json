@@ -1,0 +1,52 @@
+{
+  "name": "casioplus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Casioplus — App, Studio, canonical TypeScript Core and governed organizational memory",
+  "type": "module",
+  "packageManager": "pnpm@10.18.0",
+  "scripts": {
+    "dev": "pnpm --filter @casioplus/core-api dev",
+    "dev:core": "pnpm --filter @casioplus/core-api dev",
+    "build": "pnpm build:core && pnpm build:worker && pnpm build:app && pnpm build:studio",
+    "build:core": "pnpm --filter @casioplus/core-api build",
+    "build:worker": "pnpm --filter @casioplus/native-diagnosis-worker build",
+    "build:app": "pnpm --filter @casioplus/app-web build",
+    "build:studio": "pnpm --filter @casioplus/studio-web build",
+    "check": "tsc --noEmit",
+    "check:worker": "pnpm --filter @casioplus/native-diagnosis-worker check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "tsx services/core-api/src/db/migrate.ts",
+    "smoke:golden": "bash scripts/smoke-golden-flow.sh",
+    "smoke:remix": "bash scripts/smoke-remix-surfaces.sh",
+    "auth:issue-dev": "tsx scripts/issue-dev-session.ts",
+    "validate:topology": "tsx scripts/validate-topology.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "bullmq": "^5.58.5",
+    "cors": "^2.8.5",
+    "drizzle-orm": "^0.44.7",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.8.2",
+    "pg": "^8.16.3",
+    "pino": "^10.1.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "@types/supertest": "^6.0.3",
+    "drizzle-kit": "^0.31.5",
+    "prettier": "^3.6.2",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

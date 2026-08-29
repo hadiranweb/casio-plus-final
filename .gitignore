@@ -1,0 +1,20 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+.next/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+*.local
+
+# Rust is not part of the MVP critical path, but keep future worker artifacts out.
+target/
+
+# Local databases, dumps and generated reports
+*.dump
+*.sql.gz
+local-data/
