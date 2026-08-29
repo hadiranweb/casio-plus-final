@@ -60,6 +60,12 @@ jobs:
       - name: Topology validation
         run: pnpm validate:topology
 
+      - name: Repository security validation
+        run: pnpm validate:security
+
+      - name: Production dependency audit
+        run: pnpm security:audit
+
       - name: Migration smoke
         env:
           DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_ci
@@ -71,7 +77,22 @@ jobs:
       - name: Remix SSR smoke
         run: pnpm smoke:remix
 
-      - name: Validate Remix deployment images
+      - name: Validate production images
         run: |
-          docker build --file deployment/Dockerfile.console --tag casioplus-app-remix-ci .
-          docker build --file deployment/Dockerfile.forge --tag casioplus-forge-remix-ci .
+          docker build --file deployment/Dockerfile.core --tag casioplus-core-ci .
+          docker build --file deployment/Dockerfile.worker --tag casioplus-worker-ci .
+          docker build --file deployment/Dockerfile.console --tag casioplus-console-ci .
+          docker build --file deployment/Dockerfile.forge --tag casioplus-forge-ci .
+
+      - name: Create dependency inventory
+        if: always()
+        run: pnpm list --prod --json --depth Infinity > dependency-inventory.json
+
+      - name: Upload dependency inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: casioplus-dependency-inventory
+          path: dependency-inventory.json
+          if-no-files-found: error
+          retention-days: 30

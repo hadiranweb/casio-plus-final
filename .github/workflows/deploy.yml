@@ -1,4 +1,4 @@
-name: Deploy to Liara
+name: Release Casioplus
 
 on:
   push:
@@ -50,7 +50,10 @@ jobs:
           pnpm check
           pnpm test
           pnpm validate:topology
+          pnpm validate:security
+          pnpm security:audit
           pnpm build
+          pnpm smoke:remix
 
   deploy-staging:
     name: deploy-${{ matrix.unit }}-staging
@@ -70,7 +73,7 @@ jobs:
             app_secret: LIARA_WORKER_APP
             dockerfile: deployment/Dockerfile.worker
             port: '8090'
-          - unit: app
+          - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console
             port: '8080'
@@ -117,7 +120,7 @@ jobs:
             app_secret: LIARA_WORKER_APP
             dockerfile: deployment/Dockerfile.worker
             port: '8090'
-          - unit: app
+          - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console
             port: '8080'

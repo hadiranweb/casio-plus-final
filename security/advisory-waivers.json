@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "waivers": [
+    {
+      "id": "GHSA-wrjc-x8rr-h8h6",
+      "severity": "moderate",
+      "expiresOn": "2026-09-15",
+      "owner": "Platform Security",
+      "justification": "Internal route allowlist and server-side redirect validation remain mandatory until a Remix-compatible patch is available."
+    },
+    {
+      "id": "GHSA-jjmj-jmhj-qwj2",
+      "severity": "moderate",
+      "expiresOn": "2026-09-15",
+      "owner": "Platform Security",
+      "justification": "Navigation destinations are internal and allowlisted until a Remix-compatible patch is available."
+    },
+    {
+      "id": "GHSA-337j-9hxr-rhxg",
+      "severity": "moderate",
+      "expiresOn": "2026-09-15",
+      "owner": "Platform Security",
+      "justification": "Server errors are minimized and payload-derived constructors are forbidden until a Remix-compatible patch is available."
+    }
+  ]
+}

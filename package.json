@@ -22,13 +22,15 @@
     "smoke:remix": "bash scripts/smoke-remix-surfaces.sh",
     "auth:issue-dev": "tsx scripts/issue-dev-session.ts",
     "validate:topology": "tsx scripts/validate-topology.ts",
+    "validate:security": "tsx scripts/validate-repository-security.ts",
+    "security:audit": "tsx scripts/validate-dependency-policy.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "dependencies": {
     "bullmq": "^5.58.5",
     "cors": "^2.8.5",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "ioredis": "^5.8.2",

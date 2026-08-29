@@ -2,3 +2,6 @@ packages:
   - 'apps/*'
   - 'services/*'
   - 'packages/*'
+
+overrides:
+  turbo-stream: 3.2.1

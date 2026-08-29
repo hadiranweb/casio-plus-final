@@ -14,7 +14,7 @@
     "@casioplus/contracts": "workspace:*",
     "@casioplus/domain": "workspace:*",
     "@casioplus/knowledge-model": "workspace:*",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "pg": "^8.16.3",
