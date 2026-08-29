@@ -445,7 +445,12 @@ export function mountIdentityRoutes(app: Express, pool: Pool, sessionSecret: str
       assertCsrfForCookieRequest(request);
       const principal = await loadPrincipal(request, pool, sessionSecret);
       await requireAdministrativeRole(pool, principal);
-      const input = createInvitationSchema.parse({ ...request.body, ...principal });
+      const input = createInvitationSchema.parse({
+        ...request.body,
+        organizationId: principal.organizationId,
+        workspaceId: request.body.workspaceId ?? principal.workspaceId,
+        actorId: principal.actorId,
+      });
       const workspaceId = input.workspaceId ?? principal.workspaceId;
       const workspace = await pool.query(
         `SELECT 1 FROM workspaces
