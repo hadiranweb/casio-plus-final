@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
+import { persistentTenantContext } from './auth.js';
 import { applyMigrations, createPool } from './db.js';
 import { loadMigrations } from './migrations.js';
 import { resolve } from 'node:path';
@@ -36,7 +37,11 @@ describeWithDatabase('persistent identity and tenant boundary', () => {
 
   beforeAll(async () => {
     pool = createPool(databaseUrl!);
-    app = createApp(pool, { sessionSecret, enforceMembership: true });
+    app = createApp(pool, {
+      sessionSecret,
+      enforceMembership: true,
+      resolveTenantContext: persistentTenantContext(pool, sessionSecret),
+    });
     await applyMigrations(pool, await loadMigrations(resolve(process.cwd(), 'migrations')));
   });
 
