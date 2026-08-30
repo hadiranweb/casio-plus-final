@@ -361,4 +361,78 @@ describeWithDatabase('interaction and action runtime boundaries', () => {
     );
     expect(usage.rows[0]).toEqual({ runtime: 'openclaw', operation: 'action.send_message' });
   });
+
+  it('lists and retires governed targets, policies, pricing versions, and meter bindings', async () => {
+    const fixture = await createRun(
+      'openclaw',
+      { action: 'send_message', targetKey: 'governance-test' },
+      { message: 'Governance lifecycle check.' },
+    );
+    const target = await request(app).post('/api/v1/action-targets').send({
+      key: 'governance-test',
+      action: 'send_message',
+      executorRef: 'governance.test',
+    });
+    expect(target.status, JSON.stringify(target.body)).toBe(201);
+    const policy = await request(app).post('/api/v1/action-policies').send({
+      flowId: fixture.flowId,
+      flowVersionId: fixture.flowVersionId,
+      targetId: target.body.target.id,
+      action: 'send_message',
+      riskClass: 'medium',
+    });
+    expect(policy.status, JSON.stringify(policy.body)).toBe(201);
+
+    const [targets, policies, pricingVersions, bindings] = await Promise.all([
+      request(app).get('/api/v1/action-targets'),
+      request(app).get('/api/v1/action-policies'),
+      request(app).get('/api/v1/pricing-assumptions'),
+      request(app).get('/api/v1/runtime-meter-bindings'),
+    ]);
+    expect(targets.status, JSON.stringify(targets.body)).toBe(200);
+    expect(targets.body.targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: target.body.target.id, status: 'active' }),
+      ]),
+    );
+    expect(policies.status, JSON.stringify(policies.body)).toBe(200);
+    expect(policies.body.policies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: policy.body.policy.id, status: 'active' }),
+      ]),
+    );
+    expect(pricingVersions.status, JSON.stringify(pricingVersions.body)).toBe(200);
+    expect(pricingVersions.body.pricingVersions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: pricingVersionId, status: 'active' })]),
+    );
+    expect(bindings.status, JSON.stringify(bindings.body)).toBe(200);
+    expect(bindings.body.bindings.length).toBeGreaterThan(0);
+
+    const retired = await request(app)
+      .post(`/api/v1/action-policies/${policy.body.policy.id}/retire`)
+      .send({});
+    expect(retired.status, JSON.stringify(retired.body)).toBe(200);
+    expect(retired.body.policy.status).toBe('retired');
+    const disabled = await request(app)
+      .post(`/api/v1/action-targets/${target.body.target.id}/disable`)
+      .send({});
+    expect(disabled.status, JSON.stringify(disabled.body)).toBe(200);
+    expect(disabled.body.target.status).toBe('disabled');
+
+    const audit = await pool.query<{ eventType: string }>(
+      `SELECT event_type AS "eventType"
+         FROM audit_events
+        WHERE organization_id = $1 AND subject_id IN ($2, $3)
+        ORDER BY created_at`,
+      [organizationId, target.body.target.id, policy.body.policy.id],
+    );
+    expect(audit.rows.map((row) => row.eventType)).toEqual(
+      expect.arrayContaining([
+        'action.target_created',
+        'action.policy_created',
+        'action.policy_retired',
+        'action.target_disabled',
+      ]),
+    );
+  });
 });

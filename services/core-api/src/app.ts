@@ -591,29 +591,126 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     }
   });
 
+  app.get('/api/v1/action-targets', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const targets = await pool.query(
+        `SELECT id, organization_id AS "organizationId", workspace_id AS "workspaceId",
+                key, action, executor_ref AS "executorRef", status, created_at AS "createdAt"
+           FROM action_targets
+          WHERE organization_id = $1 AND workspace_id = $2
+          ORDER BY created_at DESC`,
+        [context.organizationId, context.workspaceId],
+      );
+      return res.json({ targets: targets.rows, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/v1/action-targets', async (req, res, next) => {
     try {
       const context = await resolveTenantContext(req);
       await requireMembership(pool, context, administrativeRoles, enforceMembership);
       const input = createActionTargetSchema.parse({ ...req.body, ...context });
-      const inserted = await pool.query(
-        `INSERT INTO action_targets
-            (organization_id, workspace_id, key, action, executor_ref, created_by_actor_id)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
-                   key, action, executor_ref AS "executorRef", status, created_at AS "createdAt"`,
-        [
-          input.organizationId,
-          input.workspaceId,
-          input.key,
-          input.action,
-          input.executorRef,
-          input.actorId,
-        ],
-      );
-      return res.status(201).json({ target: inserted.rows[0], requestId: requestId(req) });
+      const target = await withTransaction(pool, async (client) => {
+        const inserted = await client.query(
+          `INSERT INTO action_targets
+              (organization_id, workspace_id, key, action, executor_ref, created_by_actor_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
+                     key, action, executor_ref AS "executorRef", status, created_at AS "createdAt"`,
+          [
+            input.organizationId,
+            input.workspaceId,
+            input.key,
+            input.action,
+            input.executorRef,
+            input.actorId,
+          ],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, 'action.target_created', $2, 'action_target', $3, $4)`,
+          [
+            input.organizationId,
+            input.actorId,
+            inserted.rows[0].id,
+            { workspaceId: input.workspaceId, key: input.key, action: input.action },
+          ],
+        );
+        return inserted.rows[0];
+      });
+      return res.status(201).json({ target, requestId: requestId(req) });
     } catch (error) {
       if (hasPgCode(error, '23505')) return next(new HttpError(409, 'action_target_conflict'));
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/action-targets/:targetId/disable', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const target = await withTransaction(pool, async (client) => {
+        const updated = await client.query(
+          `UPDATE action_targets
+              SET status = 'disabled'
+            WHERE id = $1 AND organization_id = $2 AND workspace_id = $3 AND status = 'active'
+            RETURNING id, key, action, executor_ref AS "executorRef", status`,
+          [req.params.targetId, context.organizationId, context.workspaceId],
+        );
+        if (updated.rowCount !== 1) throw new HttpError(404, 'action_target_not_found');
+        await client.query(
+          `UPDATE action_policies
+              SET status = 'retired',
+                  valid_until = CASE WHEN valid_from >= now() THEN valid_from + interval '1 microsecond' ELSE now() END
+            WHERE organization_id = $1 AND workspace_id = $2 AND target_id = $3 AND status = 'active'`,
+          [context.organizationId, context.workspaceId, req.params.targetId],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, 'action.target_disabled', $2, 'action_target', $3, $4)`,
+          [
+            context.organizationId,
+            context.actorId,
+            req.params.targetId,
+            { workspaceId: context.workspaceId },
+          ],
+        );
+        return updated.rows[0];
+      });
+      return res.json({ target, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/v1/action-policies', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const policies = await pool.query(
+        `SELECT ap.id, ap.organization_id AS "organizationId", ap.workspace_id AS "workspaceId",
+                ap.flow_id AS "flowId", f.name AS "flowName",
+                ap.flow_version_id AS "flowVersionId", fv.version AS "flowVersion",
+                ap.target_id AS "targetId", at.key AS "targetKey", ap.action,
+                ap.risk_class AS "riskClass", ap.approval_required AS "approvalRequired",
+                ap.status, ap.valid_from AS "validFrom", ap.valid_until AS "validUntil",
+                ap.created_at AS "createdAt"
+           FROM action_policies ap
+           JOIN flows f ON f.id = ap.flow_id
+           JOIN flow_versions fv ON fv.id = ap.flow_version_id AND fv.flow_id = ap.flow_id
+           JOIN action_targets at ON at.id = ap.target_id
+          WHERE ap.organization_id = $1 AND ap.workspace_id = $2
+          ORDER BY ap.created_at DESC`,
+        [context.organizationId, context.workspaceId],
+      );
+      return res.json({ policies: policies.rows, requestId: requestId(req) });
+    } catch (error) {
       next(error);
     }
   });
@@ -623,42 +720,97 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       const context = await resolveTenantContext(req);
       await requireMembership(pool, context, administrativeRoles, enforceMembership);
       const input = createActionPolicySchema.parse({ ...req.body, ...context });
-      const inserted = await pool.query(
-        `INSERT INTO action_policies
-            (organization_id, workspace_id, flow_id, flow_version_id, target_id, action,
-             risk_class, approval_required, valid_from, valid_until, created_by_actor_id)
-         SELECT $1, $2, f.id, fv.id, at.id, $6, $7, TRUE,
-                COALESCE($8::timestamptz, now()), $9::timestamptz, $10
-           FROM flows f
-           JOIN flow_versions fv ON fv.flow_id = f.id AND fv.id = $4
-           JOIN action_targets at
-             ON at.organization_id = f.organization_id AND at.workspace_id = f.workspace_id
-            AND at.id = $5 AND at.action = $6 AND at.status = 'active'
-          WHERE f.id = $3 AND f.organization_id = $1 AND f.workspace_id = $2
-            AND fv.runtime_binding = 'openclaw'
-         RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
-                   flow_id AS "flowId", flow_version_id AS "flowVersionId",
-                   target_id AS "targetId", action, risk_class AS "riskClass",
-                   approval_required AS "approvalRequired", status,
-                   valid_from AS "validFrom", valid_until AS "validUntil",
-                   created_at AS "createdAt"`,
-        [
-          input.organizationId,
-          input.workspaceId,
-          input.flowId,
-          input.flowVersionId,
-          input.targetId,
-          input.action,
-          input.riskClass,
-          input.validFrom ?? null,
-          input.validUntil ?? null,
-          input.actorId,
-        ],
-      );
-      if (inserted.rowCount !== 1) throw new HttpError(404, 'action_policy_context_not_found');
-      return res.status(201).json({ policy: inserted.rows[0], requestId: requestId(req) });
+      const policy = await withTransaction(pool, async (client) => {
+        const inserted = await client.query(
+          `INSERT INTO action_policies
+              (organization_id, workspace_id, flow_id, flow_version_id, target_id, action,
+               risk_class, approval_required, valid_from, valid_until, created_by_actor_id)
+           SELECT $1, $2, f.id, fv.id, at.id, $6, $7, TRUE,
+                  COALESCE($8::timestamptz, now()), $9::timestamptz, $10
+             FROM flows f
+             JOIN flow_versions fv ON fv.flow_id = f.id AND fv.id = $4
+             JOIN action_targets at
+               ON at.organization_id = f.organization_id AND at.workspace_id = f.workspace_id
+              AND at.id = $5 AND at.action = $6 AND at.status = 'active'
+            WHERE f.id = $3 AND f.organization_id = $1 AND f.workspace_id = $2
+              AND fv.runtime_binding = 'openclaw'
+           RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
+                     flow_id AS "flowId", flow_version_id AS "flowVersionId",
+                     target_id AS "targetId", action, risk_class AS "riskClass",
+                     approval_required AS "approvalRequired", status,
+                     valid_from AS "validFrom", valid_until AS "validUntil",
+                     created_at AS "createdAt"`,
+          [
+            input.organizationId,
+            input.workspaceId,
+            input.flowId,
+            input.flowVersionId,
+            input.targetId,
+            input.action,
+            input.riskClass,
+            input.validFrom ?? null,
+            input.validUntil ?? null,
+            input.actorId,
+          ],
+        );
+        if (inserted.rowCount !== 1) throw new HttpError(404, 'action_policy_context_not_found');
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, 'action.policy_created', $2, 'action_policy', $3, $4)`,
+          [
+            input.organizationId,
+            input.actorId,
+            inserted.rows[0].id,
+            {
+              workspaceId: input.workspaceId,
+              flowId: input.flowId,
+              flowVersionId: input.flowVersionId,
+              targetId: input.targetId,
+              riskClass: input.riskClass,
+            },
+          ],
+        );
+        return inserted.rows[0];
+      });
+      return res.status(201).json({ policy, requestId: requestId(req) });
     } catch (error) {
       if (hasPgCode(error, '23505')) return next(new HttpError(409, 'action_policy_conflict'));
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/action-policies/:policyId/retire', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const policy = await withTransaction(pool, async (client) => {
+        const updated = await client.query(
+          `UPDATE action_policies
+              SET status = 'retired',
+                  valid_until = CASE WHEN valid_from >= now() THEN valid_from + interval '1 microsecond' ELSE now() END
+            WHERE id = $1 AND organization_id = $2 AND workspace_id = $3 AND status = 'active'
+            RETURNING id, flow_id AS "flowId", flow_version_id AS "flowVersionId",
+                      target_id AS "targetId", action, risk_class AS "riskClass",
+                      status, valid_from AS "validFrom", valid_until AS "validUntil"`,
+          [req.params.policyId, context.organizationId, context.workspaceId],
+        );
+        if (updated.rowCount !== 1) throw new HttpError(404, 'action_policy_not_found');
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, 'action.policy_retired', $2, 'action_policy', $3, $4)`,
+          [
+            context.organizationId,
+            context.actorId,
+            req.params.policyId,
+            { workspaceId: context.workspaceId },
+          ],
+        );
+        return updated.rows[0];
+      });
+      return res.json({ policy, requestId: requestId(req) });
+    } catch (error) {
       next(error);
     }
   });
@@ -1630,36 +1782,93 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     }
   });
 
+  app.get('/api/v1/pricing-assumptions', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const pricingVersions = await pool.query(
+        `SELECT id, key, version, status, assumptions,
+                effective_from AS "effectiveFrom", effective_until AS "effectiveUntil",
+                created_at AS "createdAt"
+           FROM pricing_assumption_versions
+          WHERE organization_id IS NULL OR organization_id = $1
+          ORDER BY organization_id NULLS FIRST, key, version DESC`,
+        [context.organizationId],
+      );
+      return res.json({ pricingVersions: pricingVersions.rows, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/v1/pricing-assumptions', async (req, res, next) => {
     try {
       const context = await resolveTenantContext(req);
       await requireMembership(pool, context, administrativeRoles, enforceMembership);
       const input = createPricingAssumptionSchema.parse({ ...req.body, ...context });
-      const pricingVersion = await pool.query(
-        `INSERT INTO pricing_assumption_versions
-            (organization_id, key, version, status, assumptions, effective_from, effective_until)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, key, version, status, assumptions,
-                   effective_from AS "effectiveFrom", effective_until AS "effectiveUntil",
-                   created_at AS "createdAt"`,
-        [
-          input.organizationId,
-          input.key,
-          input.version,
-          input.status,
-          input.assumptions,
-          input.effectiveFrom,
-          input.effectiveUntil ?? null,
-        ],
-      );
-      return res.status(201).json({
-        pricingVersion: pricingVersion.rows[0],
-        requestId: requestId(req),
+      const pricingVersion = await withTransaction(pool, async (client) => {
+        const inserted = await client.query(
+          `INSERT INTO pricing_assumption_versions
+              (organization_id, key, version, status, assumptions, effective_from, effective_until)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id, key, version, status, assumptions,
+                     effective_from AS "effectiveFrom", effective_until AS "effectiveUntil",
+                     created_at AS "createdAt"`,
+          [
+            input.organizationId,
+            input.key,
+            input.version,
+            input.status,
+            input.assumptions,
+            input.effectiveFrom,
+            input.effectiveUntil ?? null,
+          ],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, 'economics.pricing_assumption_created', $2, 'pricing_assumption', $3, $4)`,
+          [
+            input.organizationId,
+            input.actorId,
+            inserted.rows[0].id,
+            { key: input.key, version: input.version, status: input.status },
+          ],
+        );
+        return inserted.rows[0];
       });
+      return res.status(201).json({ pricingVersion, requestId: requestId(req) });
     } catch (error) {
       if (hasPgCode(error, '23505')) {
         return next(new HttpError(409, 'pricing_assumption_version_conflict'));
       }
+      next(error);
+    }
+  });
+
+  app.get('/api/v1/runtime-meter-bindings', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const bindings = await pool.query(
+        `SELECT rmb.id, rmb.organization_id AS "organizationId", rmb.runtime, rmb.operation,
+                rmb.resource_key AS "resourceKey", rmb.pricing_version_id AS "pricingVersionId",
+                pav.key AS "pricingKey", pav.version AS "pricingVersion",
+                rmb.currency, rmb.payer, rmb.direct_unit_cost AS "directUnitCost",
+                rmb.input_token_unit_cost AS "inputTokenUnitCost",
+                rmb.output_token_unit_cost AS "outputTokenUnitCost",
+                rmb.allocated_shared_cost AS "allocatedSharedCost",
+                rmb.billable_multiplier AS "billableMultiplier", rmb.status,
+                rmb.valid_from AS "validFrom", rmb.valid_until AS "validUntil",
+                rmb.created_at AS "createdAt"
+           FROM runtime_meter_bindings rmb
+           JOIN pricing_assumption_versions pav ON pav.id = rmb.pricing_version_id
+          WHERE rmb.organization_id = $1
+          ORDER BY rmb.created_at DESC`,
+        [context.organizationId],
+      );
+      return res.json({ bindings: bindings.rows, requestId: requestId(req) });
+    } catch (error) {
       next(error);
     }
   });
@@ -1722,6 +1931,22 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
             validFrom,
             input.validUntil ?? null,
             input.actorId,
+          ],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, 'economics.runtime_meter_bound', $2, 'runtime_meter_binding', $3, $4)`,
+          [
+            input.organizationId,
+            input.actorId,
+            inserted.rows[0].id,
+            {
+              runtime: input.runtime,
+              operation: input.operation,
+              resourceKey: input.resourceKey,
+              pricingVersionId: input.pricingVersionId,
+            },
           ],
         );
         return inserted.rows[0];

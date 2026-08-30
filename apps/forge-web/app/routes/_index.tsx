@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouteLoaderData } from '@remix-run/react';
 import { CasioplusBrandMark } from '@casioplus/ui';
 import type { loader as rootLoader } from '../root.js';
+
+const RunControlPanel = lazy(() => import('../components/RunControlPanel.client.js'));
 import {
   ArrowLeft,
   ArrowUpLeft,
@@ -67,6 +69,36 @@ const runtimeOptions = [
   { value: 'open-webui', label: 'Open WebUI', detail: 'model interaction', icon: Sparkles },
   { value: 'openclaw', label: 'OpenClaw', detail: 'approval action', icon: Bot },
 ];
+
+const runtimeLifecycle: Record<
+  string,
+  { gateLabel: string; gateDetail: string; resultLabel: string; resultDetail: string }
+> = {
+  native: {
+    gateLabel: 'Core lifecycle',
+    gateDetail: 'audited status',
+    resultLabel: 'Canonical result',
+    resultDetail: 'governed output',
+  },
+  n8n: {
+    gateLabel: 'Workflow result',
+    gateDetail: 'typed callback',
+    resultLabel: 'Canonical result',
+    resultDetail: 'adapter response',
+  },
+  'open-webui': {
+    gateLabel: 'Usage meter',
+    gateDetail: 'pricing snapshot',
+    resultLabel: 'Model result',
+    resultDetail: 'metered response',
+  },
+  openclaw: {
+    gateLabel: 'Approval gate',
+    gateDetail: 'human decision',
+    resultLabel: 'Action result',
+    resultDetail: 'delivery audit',
+  },
+};
 
 const defaultInputSchema = JSON.stringify(
   { type: 'object', additionalProperties: false, properties: {} },
@@ -137,6 +169,10 @@ export default function Forge() {
   const [inputSchemaText, setInputSchemaText] = useState(defaultInputSchema);
   const [outputSchemaText, setOutputSchemaText] = useState(defaultOutputSchema);
   const [runtime, setRuntime] = useState('native');
+  const [runtimeModel, setRuntimeModel] = useState('casioplus-general');
+  const [runtimeMaxTokens, setRuntimeMaxTokens] = useState('512');
+  const [runtimeSystemPrompt, setRuntimeSystemPrompt] = useState('');
+  const [runtimeTargetKey, setRuntimeTargetKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -215,15 +251,34 @@ export default function Forge() {
     try {
       const inputSchema = JSON.parse(inputSchemaText) as Record<string, unknown>;
       const outputSchema = JSON.parse(outputSchemaText) as Record<string, unknown>;
+      if (runtime === 'open-webui' && !runtimeModel.trim()) {
+        throw new Error('model_required');
+      }
+      if (runtime === 'openclaw' && !runtimeTargetKey.trim()) {
+        throw new Error('target_key_required');
+      }
+      const runtimeDefinition =
+        runtime === 'open-webui'
+          ? {
+              model: runtimeModel.trim(),
+              maxTokens: Number(runtimeMaxTokens),
+              ...(runtimeSystemPrompt.trim() ? { systemPrompt: runtimeSystemPrompt.trim() } : {}),
+            }
+          : runtime === 'openclaw'
+            ? { action: 'send_message', targetKey: runtimeTargetKey.trim() }
+            : runtime === 'n8n'
+              ? { operation: 'workflow.execute' }
+              : { mode: 'deterministic' };
       await requestJson(apiBase, `/api/v1/flows/${selectedFlow.id}/versions`, csrfToken, {
         method: 'POST',
         body: JSON.stringify({
           inputSchema,
           outputSchema,
           definition: {
+            ...runtimeDefinition,
             note: versionNote || null,
             steps: ['input', 'runtime', 'review', 'artifact'],
-            reviewRequired: true,
+            reviewRequired: runtime === 'openclaw',
           },
           runtimeBinding: runtime,
         }),
@@ -258,6 +313,7 @@ export default function Forge() {
     () => runtimeOptions.find((option) => option.value === runtime),
     [runtime],
   );
+  const lifecycleDetail = runtimeLifecycle[runtime] ?? runtimeLifecycle.native;
 
   if (booting) {
     return (
@@ -455,6 +511,57 @@ export default function Forge() {
                     </button>
                   ))}
                 </div>
+                {runtime === 'open-webui' && (
+                  <div className="runtime-config">
+                    <label>
+                      model key
+                      <input
+                        dir="ltr"
+                        value={runtimeModel}
+                        onChange={(event) => setRuntimeModel(event.target.value)}
+                        placeholder="casioplus-general"
+                        required
+                      />
+                    </label>
+                    <label>
+                      max tokens
+                      <input
+                        type="number"
+                        min="1"
+                        max="32768"
+                        value={runtimeMaxTokens}
+                        onChange={(event) => setRuntimeMaxTokens(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="runtime-config-wide">
+                      system prompt اختیاری
+                      <textarea
+                        value={runtimeSystemPrompt}
+                        onChange={(event) => setRuntimeSystemPrompt(event.target.value)}
+                        rows={3}
+                        maxLength={8_000}
+                      />
+                    </label>
+                  </div>
+                )}
+                {runtime === 'openclaw' && (
+                  <div className="runtime-config">
+                    <label className="runtime-config-wide">
+                      target key
+                      <input
+                        dir="ltr"
+                        value={runtimeTargetKey}
+                        onChange={(event) => setRuntimeTargetKey(event.target.value)}
+                        placeholder="operations-primary"
+                        required
+                      />
+                    </label>
+                    <p className="runtime-config-help">
+                      target و policy متناظر باید پیش از اجرا در Console و Core ثبت شوند.
+                    </p>
+                  </div>
+                )}
                 <div className="runtime-note">
                   <ShieldCheck size={16} />
                   <span>
@@ -498,7 +605,7 @@ export default function Forge() {
                 <div className="forge-surface-head">
                   <div>
                     <span>۰۴ / VERSION</span>
-                    <h2>یادداشت و ثبت version</h2>
+                    <h2>یادداشت تغییر</h2>
                   </div>
                   <GitBranch size={19} />
                 </div>
@@ -516,7 +623,7 @@ export default function Forge() {
                   disabled={!selectedFlow || loading}
                 >
                   <Save size={15} />
-                  {loading ? 'در حال ثبت…' : 'ساخت version immutable'}
+                  {loading ? 'در حال ثبت…' : 'ثبت نسخهٔ immutable'}
                 </button>
               </section>
             </div>
@@ -547,16 +654,16 @@ export default function Forge() {
                   <div className="map-node">
                     <span>03</span>
                     <div>
-                      <strong>Review gate</strong>
-                      <small>human decision</small>
+                      <strong>{lifecycleDetail.gateLabel}</strong>
+                      <small>{lifecycleDetail.gateDetail}</small>
                     </div>
                   </div>
                   <i />
                   <div className="map-node">
                     <span>04</span>
                     <div>
-                      <strong>Artifact + memory</strong>
-                      <small>governed output</small>
+                      <strong>{lifecycleDetail.resultLabel}</strong>
+                      <small>{lifecycleDetail.resultDetail}</small>
                     </div>
                   </div>
                 </div>
@@ -605,6 +712,17 @@ export default function Forge() {
                   </div>
                 )}
               </section>
+
+              <Suspense
+                fallback={<div className="inspector-empty">در حال بارگذاری Run Control…</div>}
+              >
+                <RunControlPanel
+                  apiBase={apiBase}
+                  csrfToken={csrfToken}
+                  flow={selectedFlow}
+                  versions={versions}
+                />
+              </Suspense>
 
               <section className="policy-panel">
                 <ShieldCheck size={18} />

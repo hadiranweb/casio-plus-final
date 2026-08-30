@@ -8,6 +8,7 @@ const MemoryGraph3D = lazy(() => import('../components/MemoryGraph3D.client.js')
 const OrganizationControlPanel = lazy(
   () => import('../components/OrganizationControlPanel.client.js'),
 );
+const GovernanceControlPanel = lazy(() => import('../components/GovernanceControlPanel.client.js'));
 import {
   Activity,
   ArrowLeft,
@@ -106,8 +107,6 @@ type ApiState = {
   flows: Flow[];
   runs: ProcessRun[];
   memories: MemoryItem[];
-  pnl: Record<string, string>[];
-  tco: Record<string, string>[];
 };
 
 const initialApiState: ApiState = {
@@ -115,8 +114,6 @@ const initialApiState: ApiState = {
   flows: [],
   runs: [],
   memories: [],
-  pnl: [],
-  tco: [],
 };
 
 class ApiError extends Error {
@@ -386,21 +383,12 @@ export default function Console() {
       setLoading(true);
       setError('');
       try {
-        const [scopeResponse, workResponse, flowResponse, runResponse, pnlResponse, tcoResponse] =
-          await Promise.all([
-            requestJson<{ items: OrganizationScope[] }>(apiBase, '/api/v1/organizations'),
-            requestJson<{ items: WorkItem[] }>(apiBase, '/api/v1/work-items'),
-            requestJson<{ flows: Flow[] }>(apiBase, '/api/v1/flows'),
-            requestJson<{ runs: ProcessRun[] }>(apiBase, '/api/v1/process-runs'),
-            requestJson<{ summary: Record<string, string>[] }>(
-              apiBase,
-              '/api/v1/usage/summary?view=casioplus_pnl',
-            ),
-            requestJson<{ summary: Record<string, string>[] }>(
-              apiBase,
-              '/api/v1/usage/summary?view=ecosystem_tco',
-            ),
-          ]);
+        const [scopeResponse, workResponse, flowResponse, runResponse] = await Promise.all([
+          requestJson<{ items: OrganizationScope[] }>(apiBase, '/api/v1/organizations'),
+          requestJson<{ items: WorkItem[] }>(apiBase, '/api/v1/work-items'),
+          requestJson<{ flows: Flow[] }>(apiBase, '/api/v1/flows'),
+          requestJson<{ runs: ProcessRun[] }>(apiBase, '/api/v1/process-runs'),
+        ]);
         const activeScope =
           scopeResponse.items.find(
             (item) =>
@@ -415,8 +403,6 @@ export default function Console() {
           workItems: workResponse.items,
           flows: flowResponse.flows,
           runs: runResponse.runs,
-          pnl: pnlResponse.summary,
-          tco: tcoResponse.summary,
         }));
       } catch (requestError) {
         if (requestError instanceof ApiError && requestError.status === 401) {
@@ -561,8 +547,6 @@ export default function Console() {
     },
     { label: 'یافتهٔ حافظه', value: data.memories.length, icon: BrainCircuit },
   ];
-  const pnl = data.pnl[0];
-  const tco = data.tco[0];
 
   return (
     <div className="console-shell">
@@ -937,28 +921,26 @@ export default function Console() {
             </Suspense>
           )}
 
-          <section className="economics-band" id="economics">
-            <div>
-              <span>ECONOMICS / ATTRIBUTED</span>
-              <h2>P&amp;L کاسیو از TCO اکوسیستم جداست.</h2>
-              <p>این اعداد فقط از ledger immutable و pricingVersion معتبر می‌آیند.</p>
-            </div>
-            <article>
-              <span>Revenue</span>
-              <strong>{pnl?.revenue ?? '—'}</strong>
-              <small>{pnl?.currency ?? 'بدون داده'}</small>
-            </article>
-            <article>
-              <span>Casioplus cost</span>
-              <strong>{pnl?.casioplus_cost ?? '—'}</strong>
-              <small>{pnl?.currency ?? 'بدون داده'}</small>
-            </article>
-            <article>
-              <span>Ecosystem TCO</span>
-              <strong>{tco?.ecosystem_tco ?? '—'}</strong>
-              <small>{tco?.currency ?? 'بدون داده'}</small>
-            </article>
-          </section>
+          {hydrated && (
+            <Suspense
+              fallback={
+                <section className="governance-control" id="governance">
+                  <div className="memory-graph-placeholder">
+                    در حال آماده‌سازی Governance Control…
+                  </div>
+                </section>
+              }
+            >
+              <GovernanceControlPanel
+                apiBase={apiBase}
+                csrfToken={csrfToken}
+                organizationId={session.context.organizationId}
+                workspaceId={session.context.workspaceId}
+                role={session.context.role}
+                flows={data.flows}
+              />
+            </Suspense>
+          )}
         </div>
       </main>
 

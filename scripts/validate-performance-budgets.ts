@@ -41,15 +41,26 @@ const organizationControlChunk = consoleAssets.find(
     asset.name.startsWith('OrganizationControlPanel.client-') && asset.name.endsWith('.js'),
 );
 if (!organizationControlChunk) throw new Error('lazy OrganizationControlPanel chunk is missing');
+const governanceControlChunk = consoleAssets.find(
+  (asset) => asset.name.startsWith('GovernanceControlPanel.client-') && asset.name.endsWith('.js'),
+);
+if (!governanceControlChunk) throw new Error('lazy GovernanceControlPanel chunk is missing');
+const runControlChunk = forgeAssets.find(
+  (asset) => asset.name.startsWith('RunControlPanel.client-') && asset.name.endsWith('.js'),
+);
+if (!runControlChunk) throw new Error('lazy RunControlPanel chunk is missing');
 
 const consoleInitialJs = consoleAssets
   .filter(
     (asset) =>
-      asset.name.endsWith('.js') && asset !== graphChunk && asset !== organizationControlChunk,
+      asset.name.endsWith('.js') &&
+      asset !== graphChunk &&
+      asset !== organizationControlChunk &&
+      asset !== governanceControlChunk,
   )
   .reduce((total, asset) => total + asset.gzipBytes, 0);
 const forgeInitialJs = forgeAssets
-  .filter((asset) => asset.name.endsWith('.js'))
+  .filter((asset) => asset.name.endsWith('.js') && asset !== runControlChunk)
   .reduce((total, asset) => total + asset.gzipBytes, 0);
 const consoleCss = consoleAssets
   .filter((asset) => asset.name.endsWith('.css'))
@@ -68,6 +79,8 @@ assertBudget(
   organizationControlChunk.gzipBytes,
   20 * kib,
 );
+assertBudget('Governance control lazy JavaScript gzip', governanceControlChunk.gzipBytes, 20 * kib);
+assertBudget('Run control lazy JavaScript gzip', runControlChunk.gzipBytes, 10 * kib);
 
 console.log(
   JSON.stringify({
@@ -79,6 +92,8 @@ console.log(
       forgeCssGzipBytes: forgeCss,
       memoryGraphLazyJsGzipBytes: graphChunk.gzipBytes,
       organizationControlLazyJsGzipBytes: organizationControlChunk.gzipBytes,
+      governanceControlLazyJsGzipBytes: governanceControlChunk.gzipBytes,
+      runControlLazyJsGzipBytes: runControlChunk.gzipBytes,
     },
   }),
 );

@@ -95,7 +95,9 @@ pnpm smoke:remix
 
 کد موجود شامل monorepo، migrationهای ordered با checksum، cookie session و CSRF، Organization/Workspace/member/invitation control plane، ownership سازمانی ExternalApp، key rotation metadata، server-side ExternalTenant mapping، Integration Gateway، transactional outbox و Dispatcher است. Memory Broker، namespace و grant governance، artifact-by-reference، immutable usage ledger، P&L/TCO، n8n، Open WebUI و OpenClaw نیز روی همان ProcessRun lifecycle و Core canonical قرار دارند.
 
-Console و Forge Remix با CI، Docker build، Golden Flow، accessibility شش‌حالته و performance budget اعتبارسنجی می‌شوند. repository هنوز deployment انجام‌شده تلقی نمی‌شود؛ انتخاب PostgreSQL، object storage، secret manager، DNS/TLS و محیط runtime در deployment packet مرحلهٔ بعد تعیین می‌شود.
+Console اکنون Approval Inbox، target/policy lifecycle، planning assumption و runtime meter binding را مدیریت و P&L کاسیو پلاس را جدا از TCO کل ecosystem نمایش می‌دهد. Forge definition متناسب با runtime می‌سازد، version immutable را منتشر می‌کند، Work و ProcessRun ایجاد می‌کند و status/result canonical را نشان می‌دهد. OpenClaw پیش از تصمیم انسانی default-deny است و پس از approval نیز فقط با ادامهٔ صریح کاربر به outbox می‌رود.
+
+این کد یک **production deployment candidate کامل** است و با full PostgreSQL test suite، Docker build، Golden Flow، accessibility شش‌حالته، performance budget و Remix SSR smoke اعتبارسنجی می‌شود. repository هنوز deployment انجام‌شده تلقی نمی‌شود؛ انتخاب PostgreSQL، object storage، secret manager، DNS/TLS و محیط runtime در deployment packet مرحلهٔ بعد تعیین می‌شود.
 
 ## اسناد canonical
 
