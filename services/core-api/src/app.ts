@@ -945,7 +945,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       }
       const observed = await options.artifactObjectStore.headObject(pendingRow.objectKey);
       const integrityMatches =
-        observed.sizeBytes === pendingRow.expectedSizeBytes &&
+        observed.sizeBytes === Number(pendingRow.expectedSizeBytes) &&
         observed.sizeBytes === input.observedSizeBytes &&
         observed.checksum === pendingRow.expectedChecksum &&
         observed.checksum === input.observedChecksum;
@@ -1093,7 +1093,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
              JOIN flows f ON f.id = fr.flow_id
              JOIN flow_versions fv ON fv.id = fr.flow_version_id AND fv.flow_id = f.id
              JOIN memory_namespaces mn ON mn.id = $6
-             JOIN pricing_assumption_versions pav ON pav.id = $10
+             JOIN pricing_assumption_versions pav ON pav.id = $9
             WHERE fr.id = $5 AND fr.organization_id = $1 AND fr.workspace_id = $2
               AND f.id = $3 AND f.organization_id = $1 AND f.workspace_id = $2
               AND fv.id = $4
@@ -1118,7 +1118,6 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
             input.namespaceId,
             input.externalAppId ?? null,
             input.externalTenantId ?? null,
-            input.actorId,
             input.pricingVersionId,
           ],
         );
