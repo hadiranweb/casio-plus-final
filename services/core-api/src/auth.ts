@@ -106,6 +106,10 @@ export function createCsrfToken(): string {
   return randomBytes(32).toString('base64url');
 }
 
+export function csrfTokenFromRequest(req: Request): string | null {
+  return cookieValue(req, 'casioplus_csrf');
+}
+
 export function assertCsrfForCookieRequest(req: Request): void {
   if (!cookieValue(req, 'casioplus_session')) return;
   const cookieToken = cookieValue(req, 'casioplus_csrf');

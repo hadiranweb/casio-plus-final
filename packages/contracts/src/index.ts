@@ -4,7 +4,7 @@ export const identifierSchema = z.string().uuid();
 
 export const publicRuntimeConfigSchema = z.object({
   coreApiUrl: z.string().url(),
-  appUrl: z.string().url(),
+  consoleUrl: z.string().url(),
   forgeUrl: z.string().url(),
 });
 

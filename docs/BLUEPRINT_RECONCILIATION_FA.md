@@ -12,12 +12,12 @@ Blueprint تجربه برای Casioplus پذیرفته می‌شود، اما ف
 
 > **Casioplus یک محصول واحد با دو surface اجرایی است:** Console برای control، عملیات و مصرف؛ Forge برای authoring و governance؛ Core/API برای canonical ownership، authorization و lifecycle مشترک.
 
-| جزء                            | نقش در محصول واحد                                                                                                               | مرز قطعی                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Console در `app.casioplus.com` | ورود و account، Organization، Workspace، دعوت، دسترسی، command center، Work/Run، Review، Artifact، Memory view، usage و تنظیمات | به database، runtime داخلی یا credential دسترسی مستقیم ندارد.             |
-| Forge در `forge.casioplus.com` | ساخت و ویرایش Flow، قرارداد ورودی/خروجی، policy، version، test، publish و governance                                            | clone رابط ابزار خارجی نیست و secret یا runtime credential نمایش نمی‌دهد. |
-| Core/API مشترک                 | تنها canonical writer و مرز identity، tenant resolution، authorization، audit، lifecycle، Memory Broker و usage attribution     | PostgreSQL تنها canonical store است و surfaceها writer موازی ندارند.      |
-| Native Worker و Adapterها      | اجرای محدود و اتصال به runtimeهای مجاز پشت contract                                                                             | direct database access و direct mutation در آن‌ها ممنوع است.              |
+| جزء                                | نقش در محصول واحد                                                                                                               | مرز قطعی                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Console در `console.casioplus.com` | ورود و account، Organization، Workspace، دعوت، دسترسی، command center، Work/Run، Review، Artifact، Memory view، usage و تنظیمات | به database، runtime داخلی یا credential دسترسی مستقیم ندارد.             |
+| Forge در `forge.casioplus.com`     | ساخت و ویرایش Flow، قرارداد ورودی/خروجی، policy، version، test، publish و governance                                            | clone رابط ابزار خارجی نیست و secret یا runtime credential نمایش نمی‌دهد. |
+| Core/API مشترک                     | تنها canonical writer و مرز identity، tenant resolution، authorization، audit، lifecycle، Memory Broker و usage attribution     | PostgreSQL تنها canonical store است و surfaceها writer موازی ندارند.      |
+| Native Worker و Adapterها          | اجرای محدود و اتصال به runtimeهای مجاز پشت contract                                                                             | direct database access و direct mutation در آن‌ها ممنوع است.              |
 
 ## ۲. بخش‌های قابل‌انتقال از تجربهٔ command center
 
@@ -37,12 +37,12 @@ Forge همین الگو را برای authoring به‌کار می‌گیرد: �
 
 Console و Forge دو hostname و دو deployment unit مستقل دارند، اما session، organization، workspace، Flow ownership، Run lifecycle، Memory policy و usage logic میان آن‌ها جدا نمی‌شود. ورود کاربر از Console به Forge یک navigation بین دو surface همان محصول است، نه انتقال مالکیت یا ایجاد حساب جدید.
 
-برای جلوگیری از hard-code شدن hostname در route، هر دو root loader اکنون `coreApiUrl`، `appUrl` و `forgeUrl` را با `publicRuntimeConfigSchema` از `@casioplus/contracts` اعتبارسنجی می‌کنند. مقدارهای `CASIOPLUS_APP_URL` و `CASIOPLUS_FORGE_URL` public هستند؛ هیچ token، cookie خام، secret یا tenant assertion از این مسیر منتقل نمی‌شود. احراز هویت و authorization همچنان باید توسط Core/API انجام شود.
+برای جلوگیری از hard-code شدن hostname در route، هر دو root loader اکنون `coreApiUrl`، `consoleUrl` و `forgeUrl` را با `publicRuntimeConfigSchema` از `@casioplus/contracts` اعتبارسنجی می‌کنند. مقدارهای `CASIOPLUS_CONSOLE_URL` و `CASIOPLUS_FORGE_URL` public هستند؛ هیچ token، cookie خام، secret یا tenant assertion از این مسیر منتقل نمی‌شود. احراز هویت و authorization همچنان باید توسط Core/API انجام شود.
 
 | مسیر                              | قرارداد فعلی                                                                                     |
 | --------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Console → Forge                   | لینک public با `forgeUrl` از root loader؛ بازشدن در surface Forge، بدون انتقال credential در URL |
-| Forge → Console                   | لینک public با `appUrl` از root loader؛ بازگشت به Console همان محصول                             |
+| Forge → Console                   | لینک public با `consoleUrl` از root loader؛ بازگشت به Console همان محصول                         |
 | Surface → Core/API                | درخواست typed به public Core URL فعلی؛ مرز canonical در Core باقی می‌ماند                        |
 | Surface → n8n/Open WebUI/OpenClaw | غیرمستقیم و فقط از طریق Core/API، Gateway و Adapter contract؛ اتصال مستقیم UI مجاز نیست          |
 
@@ -86,18 +86,18 @@ services/*-adapter → integration boundary محدود و typed
 
 ## ۷. وضعیت baseline و فاصلهٔ باقی‌مانده
 
-baseline فعلی ساختار Remix، command-center shell، authoring shell، navigation بین دو surface، shared contract و shared presentation primitive را فراهم می‌کند. این baseline هنوز production identity و onboarding نهایی نیست و token توسعه‌ای localStorage باید با cookie/session امن، rotation، revocation، CSRF policy و authorization tenant-aware جایگزین شود.
+baseline فعلی ساختار Remix، command-center shell، authoring shell، navigation بین دو surface، shared contract و shared presentation primitive را فراهم می‌کند. این baseline هنوز production identity و onboarding نهایی نیست و token توسعه‌ای localStorage حذف شده و cookie/session امن، revocation، CSRF policy و authorization tenant-aware پیاده‌سازی شده‌اند.
 
-| حوزه                                                                 | وضعیت                                                                         |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Console/Forge به‌عنوان یک محصول واحد                                 | implemented و در معماری، route shell و navigation ثبت شده است.                |
-| Remix-only SSR                                                       | implemented و با build، `remix-serve` و SSR smoke اعتبارسنجی شده است.         |
-| Core/API TypeScript/Node.js و PostgreSQL canonical                   | implemented در vertical slice فعلی؛ گسترش feature-first ادامه دارد.           |
-| route map تفصیلی                                                     | design/backlog؛ فقط shellهای اصلی فعلاً فعال‌اند.                             |
-| identity و session production                                        | backlog؛ baseline توسعه‌ای کافی برای production نیست.                         |
-| tenant isolation/RLS و MemoryNamespace/Grant/Broker کامل             | backlog؛ قرارداد معماری موجود است و migration/test مرحله‌ای لازم است.         |
-| Integration Gateway کامل با nonce/outbox/retry و callback dispatcher | backlog؛ adapter contract فعلی جایگزین implementation production نمی‌شود.     |
-| Liara staging/production                                             | فعال نشده؛ prerequisiteهای زیرساخت، identity و evidence هنوز باید تکمیل شوند. |
+| حوزه                                                                 | وضعیت                                                                           |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Console/Forge به‌عنوان یک محصول واحد                                 | implemented و در معماری، route shell و navigation ثبت شده است.                  |
+| Remix-only SSR                                                       | implemented و با build، `remix-serve` و SSR smoke اعتبارسنجی شده است.           |
+| Core/API TypeScript/Node.js و PostgreSQL canonical                   | implemented در vertical slice فعلی؛ گسترش feature-first ادامه دارد.             |
+| route map تفصیلی                                                     | design/backlog؛ فقط shellهای اصلی فعلاً فعال‌اند.                               |
+| identity و session production                                        | implemented؛ cookie امن، revocation، CSRF و PostgreSQL integration test دارد.   |
+| tenant isolation/RLS و MemoryNamespace/Grant/Broker کامل             | implemented؛ default-deny، purpose، grant، sensitivity و revoke آزموده شده‌اند. |
+| Integration Gateway کامل با nonce/outbox/retry و callback dispatcher | implemented؛ HMAC raw body، replay protection، mapping و outbox آزموده شده‌اند. |
+| Liara staging/production                                             | فعال نشده؛ prerequisiteهای زیرساخت، identity و evidence هنوز باید تکمیل شوند.   |
 
 ## ۸. Definition of Done برای ادامهٔ این مسیر
 

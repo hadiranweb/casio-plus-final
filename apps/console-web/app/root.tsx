@@ -18,7 +18,7 @@ export async function loader(_args: LoaderFunctionArgs) {
   return json(
     publicRuntimeConfigSchema.parse({
       coreApiUrl: process.env.CASIOPLUS_CORE_API_URL ?? 'http://localhost:8080',
-      appUrl: process.env.CASIOPLUS_APP_URL ?? 'http://localhost:5173',
+      consoleUrl: process.env.CASIOPLUS_CONSOLE_URL ?? 'http://localhost:5173',
       forgeUrl: process.env.CASIOPLUS_FORGE_URL ?? 'http://localhost:5174',
     }),
   );

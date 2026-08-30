@@ -12,6 +12,7 @@ import {
 import {
   assertCsrfForCookieRequest,
   createCsrfToken,
+  csrfTokenFromRequest,
   hashPassword,
   sessionTokenDigest,
   sessionTokenFromRequest,
@@ -263,7 +264,11 @@ export function mountIdentityRoutes(app: Express, pool: Pool, sessionSecret: str
         };
       });
       setSessionCookies(response, result.session);
-      response.status(201).json({ user: result.user, context: result.context });
+      response.status(201).json({
+        user: result.user,
+        context: result.context,
+        csrfToken: result.session.csrfToken,
+      });
     } catch (error) {
       if (
         typeof error === 'object' &&
@@ -322,6 +327,7 @@ export function mountIdentityRoutes(app: Express, pool: Pool, sessionSecret: str
       response.json({
         user: { id: userRow.id, email: userRow.email, displayName: userRow.displayName },
         context: selected,
+        csrfToken: session.csrfToken,
       });
     } catch (error) {
       next(error);
@@ -331,7 +337,10 @@ export function mountIdentityRoutes(app: Express, pool: Pool, sessionSecret: str
   app.get('/api/v1/auth/session', async (request, response, next) => {
     try {
       const principal = await loadPrincipal(request, pool, sessionSecret);
-      response.json(publicPrincipal(principal));
+      response.json({
+        ...publicPrincipal(principal),
+        csrfToken: csrfTokenFromRequest(request),
+      });
     } catch (error) {
       next(error);
     }

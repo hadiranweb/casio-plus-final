@@ -87,14 +87,14 @@ export async function loader(_args: LoaderFunctionArgs) {
   return json(
     publicRuntimeConfigSchema.parse({
       coreApiUrl: process.env.CASIOPLUS_CORE_API_URL ?? 'http://localhost:8080',
-      appUrl: process.env.CASIOPLUS_APP_URL ?? 'http://localhost:5173',
+      consoleUrl: process.env.CASIOPLUS_CONSOLE_URL ?? 'http://localhost:5173',
       forgeUrl: process.env.CASIOPLUS_FORGE_URL ?? 'http://localhost:5174',
     }),
   );
 }
 ```
 
-`DATABASE_URL`، `SESSION_SECRET` و `RUNTIME_SHARED_SECRET` هرگز نباید در loader response، HTML، browser bundle یا log قرار بگیرند. در baseline توسعه، route می‌تواند public Core URL و URL surface مقابل را از `useRouteLoaderData('root')` دریافت کند؛ session ذخیره‌شده در localStorage فقط foundation توسعه است و برای public identity کافی نیست. `CASIOPLUS_APP_URL` و `CASIOPLUS_FORGE_URL` فقط public navigation configuration هستند و نباید برای انتقال credential یا tenant authority استفاده شوند.
+`DATABASE_URL`، `SESSION_SECRET` و `RUNTIME_SHARED_SECRET` هرگز نباید در loader response، HTML، browser bundle یا log قرار بگیرند. route می‌تواند public Core URL و URL surface مقابل را از `useRouteLoaderData('root')` دریافت کند؛ session در cookie امن و قابل revocation نگه‌داری می‌شود و writeهای browser با CSRF token محافظت می‌شوند. `CASIOPLUS_CONSOLE_URL` و `CASIOPLUS_FORGE_URL` فقط public navigation configuration هستند و نباید برای انتقال credential یا tenant authority استفاده شوند.
 
 نمونهٔ route composition باید منطق canonical را به Core/API بسپارد:
 

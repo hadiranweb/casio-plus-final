@@ -76,6 +76,20 @@ describeWithDatabase('persistent identity and tenant boundary', () => {
       .send({ name: 'Denied Workspace', slug: `denied-${unique}` });
     expect(denied.status).toBe(403);
     expect(denied.body.error).toBe('csrf_required');
+
+    const deniedCoreWrite = await request(app)
+      .post('/api/v1/work-items')
+      .set('Cookie', ownerCookieHeader)
+      .send({ title: 'Denied Core Write' });
+    expect(deniedCoreWrite.status).toBe(403);
+    expect(deniedCoreWrite.body.error).toBe('csrf_required');
+
+    const acceptedCoreWrite = await request(app)
+      .post('/api/v1/work-items')
+      .set('Cookie', ownerCookieHeader)
+      .set('x-casioplus-csrf', ownerCsrf)
+      .send({ title: 'CSRF Protected Core Write' });
+    expect(acceptedCoreWrite.status).toBe(201);
   });
 
   it('creates a workspace and invitation through the canonical writer', async () => {

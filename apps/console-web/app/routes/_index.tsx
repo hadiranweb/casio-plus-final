@@ -4,20 +4,28 @@ import { CasioplusBrandMark } from '@casioplus/ui';
 import type { loader as rootLoader } from '../root.js';
 import {
   Activity,
+  ArrowLeft,
   ArrowUpLeft,
   BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   CircleAlert,
+  Command,
   FileJson2,
+  Gauge,
   LayoutDashboard,
   LogOut,
+  Menu,
+  Network,
   Plus,
   Search,
   Settings2,
-  Sparkles,
+  ShieldCheck,
+  WalletCards,
   Workflow,
+  X,
 } from 'lucide-react';
+
 type WorkItem = {
   id: string;
   title: string;
@@ -53,14 +61,55 @@ type MemoryItem = {
   rank?: number;
 };
 
+type Session = {
+  user: { id: string; email: string; displayName: string };
+  context: {
+    organizationId: string;
+    workspaceId: string;
+    actorId: string;
+    role: string;
+  };
+  expiresAt: string;
+  csrfToken: string | null;
+};
+
+type OrganizationScope = {
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  actorId: string;
+  role: string;
+};
+
 type ApiState = {
   workItems: WorkItem[];
   flows: Flow[];
   runs: ProcessRun[];
   memories: MemoryItem[];
+  pnl: Record<string, string>[];
+  tco: Record<string, string>[];
 };
 
-const initialApiState: ApiState = { workItems: [], flows: [], runs: [], memories: [] };
+const initialApiState: ApiState = {
+  workItems: [],
+  flows: [],
+  runs: [],
+  memories: [],
+  pnl: [],
+  tco: [],
+};
+
+class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat('fa-IR', {
@@ -88,70 +137,211 @@ function statusLabel(status: string) {
 async function requestJson<T>(
   apiBase: string,
   path: string,
-  token: string,
+  csrfToken?: string,
   init?: RequestInit,
 ): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       'content-type': 'application/json',
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken && !['GET', 'HEAD'].includes(method) ? { 'x-casioplus-csrf': csrfToken } : {}),
       ...(init?.headers ?? {}),
     },
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `request_failed_${response.status}`);
+    throw new ApiError(response.status, body.error ?? `request_failed_${response.status}`);
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
-function SessionPanel({
-  token,
-  onSave,
-  onClear,
+function AuthGateway({
+  apiBase,
+  onAuthenticated,
 }: {
-  token: string;
-  onSave: (value: string) => void;
-  onClear: () => void;
+  apiBase: string;
+  onAuthenticated: (session: Session) => void;
 }) {
-  const [draft, setDraft] = useState(token);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationSlug, setOrganizationSlug] = useState('');
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceSlug, setWorkspaceSlug] = useState('');
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPending(true);
+    setError('');
+    try {
+      const body =
+        mode === 'login'
+          ? { email, password }
+          : {
+              email,
+              password,
+              displayName,
+              organizationName,
+              organizationSlug,
+              workspaceName,
+              workspaceSlug,
+            };
+      await requestJson(apiBase, `/api/v1/auth/${mode}`, undefined, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      const session = await requestJson<Session>(apiBase, '/api/v1/auth/session');
+      onAuthenticated(session);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'authentication_failed');
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
-    <section className="session-panel" data-testid="session-panel">
-      <div className="eyebrow">اتصال امن به Core</div>
-      <h2>{token ? 'Session متصل است' : 'برای شروع Session را وصل کنید'}</h2>
-      <p>
-        Console فقط با Bearer session امضاشده به Core متصل می‌شود. هیچ tenant header خامی در این سطح
-        ارسال نمی‌شود.
-      </p>
-      <div className="session-input-row">
-        <input
-          aria-label="توکن session"
-          type="password"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Casioplus session token"
-        />
-        <button className="button button-primary" onClick={() => onSave(draft)}>
-          اتصال
-        </button>
-        {token && (
-          <button className="icon-button" aria-label="قطع session" onClick={onClear}>
-            <LogOut size={16} />
+    <main className="auth-stage">
+      <section className="auth-story" aria-labelledby="auth-title">
+        <CasioplusBrandMark className="auth-mark" />
+        <div className="auth-kicker">Casioplus / governed operations</div>
+        <h1 id="auth-title">تصمیم، اجرا و حافظه در یک مسیر قابل ممیزی.</h1>
+        <p>
+          Console نمای کنترل سازمان است. session در cookie امن نگه‌داری می‌شود و هیچ شناسهٔ tenant
+          از browser authority نمی‌گیرد.
+        </p>
+        <div className="auth-principles">
+          <span>
+            <ShieldCheck size={16} /> default-deny memory
+          </span>
+          <span>
+            <Network size={16} /> Core-only writer
+          </span>
+          <span>
+            <Gauge size={16} /> usage attribution
+          </span>
+        </div>
+      </section>
+      <form className="auth-form" onSubmit={submit}>
+        <div className="auth-tabs" role="tablist" aria-label="نوع ورود">
+          <button
+            type="button"
+            className={mode === 'login' ? 'active' : ''}
+            onClick={() => setMode('login')}
+          >
+            ورود
           </button>
+          <button
+            type="button"
+            className={mode === 'register' ? 'active' : ''}
+            onClick={() => setMode('register')}
+          >
+            ایجاد سازمان
+          </button>
+        </div>
+        <div className="auth-heading">
+          <span>{mode === 'login' ? 'بازگشت به Console' : 'شروع کنترل‌پلین مشترک'}</span>
+          <strong>{mode === 'login' ? 'Session سازمانی' : 'Organization و Workspace اولیه'}</strong>
+        </div>
+        {mode === 'register' && (
+          <div className="form-pair">
+            <label>
+              نام شما
+              <input
+                required
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </label>
+            <label>
+              نام سازمان
+              <input
+                required
+                value={organizationName}
+                onChange={(event) => setOrganizationName(event.target.value)}
+              />
+            </label>
+            <label>
+              کلید سازمان
+              <input
+                required
+                dir="ltr"
+                value={organizationSlug}
+                onChange={(event) => setOrganizationSlug(event.target.value)}
+                placeholder="sample-org"
+              />
+            </label>
+            <label>
+              Workspace
+              <input
+                required
+                value={workspaceName}
+                onChange={(event) => setWorkspaceName(event.target.value)}
+              />
+            </label>
+            <label>
+              کلید Workspace
+              <input
+                required
+                dir="ltr"
+                value={workspaceSlug}
+                onChange={(event) => setWorkspaceSlug(event.target.value)}
+                placeholder="main-workspace"
+              />
+            </label>
+          </div>
         )}
-      </div>
-    </section>
+        <label>
+          ایمیل
+          <input
+            required
+            type="email"
+            dir="ltr"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+          />
+        </label>
+        <label>
+          رمز عبور
+          <input
+            required
+            type="password"
+            minLength={12}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+          />
+        </label>
+        {error && (
+          <div className="form-error">
+            <CircleAlert size={16} />
+            {error}
+          </div>
+        )}
+        <button className="primary-action" disabled={pending} type="submit">
+          {pending ? 'در حال بررسی…' : mode === 'login' ? 'ورود به Console' : 'ساخت سازمان'}
+          <ArrowLeft size={16} />
+        </button>
+        <small>رمز عبور حداقل ۱۲ نویسه است. session token در localStorage ذخیره نمی‌شود.</small>
+      </form>
+    </main>
   );
 }
 
-function Console() {
+export default function Console() {
   const rootData = useRouteLoaderData<typeof rootLoader>('root');
   const apiBase = rootData?.coreApiUrl ?? 'http://localhost:8080';
-  const [token, setToken] = useState(() =>
-    typeof window === 'undefined' ? '' : (window.localStorage.getItem('casioplus_session') ?? ''),
-  );
-  const [data, setData] = useState(initialApiState);
+  const [session, setSession] = useState<Session | null>(null);
+  const [scope, setScope] = useState<OrganizationScope | null>(null);
+  const [data, setData] = useState<ApiState>(initialApiState);
+  const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -159,70 +349,105 @@ function Console() {
   const [workIntent, setWorkIntent] = useState('');
   const [memoryQuery, setMemoryQuery] = useState('');
   const [searched, setSearched] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
 
-  const connected = Boolean(token);
+  const csrfToken = session?.csrfToken ?? '';
   const activeFlow = useMemo(
     () => data.flows.find((flow) => flow.status === 'published') ?? data.flows[0],
     [data.flows],
   );
 
-  const loadData = useCallback(async () => {
-    if (!token) {
-      setData(initialApiState);
-      return;
-    }
-    setLoading(true);
-    setError('');
+  const loadOperationalData = useCallback(
+    async (activeSession: Session) => {
+      setLoading(true);
+      setError('');
+      try {
+        const [scopeResponse, workResponse, flowResponse, runResponse, pnlResponse, tcoResponse] =
+          await Promise.all([
+            requestJson<{ items: OrganizationScope[] }>(apiBase, '/api/v1/organizations'),
+            requestJson<{ items: WorkItem[] }>(apiBase, '/api/v1/work-items'),
+            requestJson<{ flows: Flow[] }>(apiBase, '/api/v1/flows'),
+            requestJson<{ runs: ProcessRun[] }>(apiBase, '/api/v1/process-runs'),
+            requestJson<{ summary: Record<string, string>[] }>(
+              apiBase,
+              '/api/v1/usage/summary?view=casioplus_pnl',
+            ),
+            requestJson<{ summary: Record<string, string>[] }>(
+              apiBase,
+              '/api/v1/usage/summary?view=ecosystem_tco',
+            ),
+          ]);
+        setSession(activeSession);
+        setScope(scopeResponse.items[0] ?? null);
+        setData((current) => ({
+          ...current,
+          workItems: workResponse.items,
+          flows: flowResponse.flows,
+          runs: runResponse.runs,
+          pnl: pnlResponse.summary,
+          tco: tcoResponse.summary,
+        }));
+      } catch (requestError) {
+        if (requestError instanceof ApiError && requestError.status === 401) {
+          setSession(null);
+          setData(initialApiState);
+        } else {
+          setError(requestError instanceof Error ? requestError.message : 'data_load_failed');
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apiBase],
+  );
+
+  const bootstrap = useCallback(async () => {
+    setBooting(true);
     try {
-      const [workResponse, flowResponse, runResponse] = await Promise.all([
-        requestJson<{ items: WorkItem[] }>(apiBase, '/api/v1/work-items', token),
-        requestJson<{ flows: Flow[] }>(apiBase, '/api/v1/flows', token),
-        requestJson<{ runs: ProcessRun[] }>(apiBase, '/api/v1/process-runs', token),
-      ]);
-      setData((current) => ({
-        ...current,
-        workItems: workResponse.items,
-        flows: flowResponse.flows,
-        runs: runResponse.runs,
-      }));
+      const activeSession = await requestJson<Session>(apiBase, '/api/v1/auth/session');
+      await loadOperationalData(activeSession);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'خطا در دریافت داده');
+      if (!(requestError instanceof ApiError && requestError.status === 401)) {
+        setError(requestError instanceof Error ? requestError.message : 'core_unavailable');
+      }
+      setSession(null);
     } finally {
-      setLoading(false);
+      setBooting(false);
     }
-  }, [apiBase, token]);
+  }, [apiBase, loadOperationalData]);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    void bootstrap();
+  }, [bootstrap]);
 
-  const saveToken = (value: string) => {
-    const trimmed = value.trim();
-    localStorage.setItem('casioplus_session', trimmed);
-    setToken(trimmed);
-    setNotice(trimmed ? 'Session ذخیره شد.' : 'Session پاک شد.');
-  };
-
-  const clearToken = () => {
-    localStorage.removeItem('casioplus_session');
-    setToken('');
-    setNotice('Session قطع شد.');
-  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen((current) => !current);
+      }
+      if (event.key === 'Escape') setCommandOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const createWorkItem = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!workTitle.trim()) return;
+    setError('');
     try {
-      await requestJson(apiBase, '/api/v1/work-items', token, {
+      await requestJson(apiBase, '/api/v1/work-items', csrfToken, {
         method: 'POST',
         body: JSON.stringify({ title: workTitle, intent: workIntent || null }),
       });
       setWorkTitle('');
       setWorkIntent('');
-      setNotice('Work جدید ساخته شد و برای اجرای Flow آماده است.');
-      await loadData();
+      setNotice('Work ثبت شد و برای اجرای Flow آماده است.');
+      if (session) await loadOperationalData(session);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'ساخت Work ناموفق بود');
+      setError(requestError instanceof Error ? requestError.message : 'work_creation_failed');
     }
   };
 
@@ -233,224 +458,255 @@ function Console() {
       const response = await requestJson<{ results: MemoryItem[] }>(
         apiBase,
         `/api/v1/memory/search?query=${encodeURIComponent(memoryQuery)}&purpose=console.search`,
-        token,
       );
       setData((current) => ({ ...current, memories: response.results }));
       setSearched(true);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'جست‌وجو ناموفق بود');
+      setError(requestError instanceof Error ? requestError.message : 'memory_search_failed');
     }
   };
 
+  const logout = async () => {
+    try {
+      await requestJson(apiBase, '/api/v1/auth/logout', csrfToken, { method: 'POST' });
+    } finally {
+      setSession(null);
+      setScope(null);
+      setData(initialApiState);
+    }
+  };
+
+  if (booting) {
+    return (
+      <main className="boot-screen">
+        <CasioplusBrandMark />
+        <span>در حال برقراری مرز امن…</span>
+      </main>
+    );
+  }
+  if (!session) {
+    return (
+      <AuthGateway apiBase={apiBase} onAuthenticated={(next) => void loadOperationalData(next)} />
+    );
+  }
+
   const metrics = [
-    { label: 'Work فعال', value: data.workItems.length, accent: 'mint' },
-    { label: 'Flowهای در دسترس', value: data.flows.length, accent: 'blue' },
-    { label: 'Runهای اخیر', value: data.runs.length, accent: 'amber' },
-    { label: 'حافظهٔ governed', value: data.memories.length, accent: 'violet' },
+    {
+      label: 'Work باز',
+      value: data.workItems.filter((item) => item.status !== 'completed').length,
+      icon: Activity,
+    },
+    {
+      label: 'Flow منتشرشده',
+      value: data.flows.filter((flow) => flow.status === 'published').length,
+      icon: Workflow,
+    },
+    {
+      label: 'Run ناموفق',
+      value: data.runs.filter((run) => run.status === 'failed').length,
+      icon: CircleAlert,
+    },
+    { label: 'یافتهٔ حافظه', value: data.memories.length, icon: BrainCircuit },
   ];
+  const pnl = data.pnl[0];
+  const tco = data.tco[0];
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <CasioplusBrandMark className="brand-mark" />
+    <div className="console-shell">
+      <button className="mobile-menu" onClick={() => setRailOpen(true)} aria-label="بازکردن ناوبری">
+        <Menu size={20} />
+      </button>
+      {railOpen && (
+        <button
+          className="rail-scrim"
+          aria-label="بستن ناوبری"
+          onClick={() => setRailOpen(false)}
+        />
+      )}
+      <aside className={`console-rail ${railOpen ? 'is-open' : ''}`}>
+        <div className="rail-brand">
+          <CasioplusBrandMark />
           <div>
             <strong>Casioplus</strong>
-            <span>control plane</span>
+            <span>Console</span>
           </div>
+          <button onClick={() => setRailOpen(false)} aria-label="بستن">
+            <X size={18} />
+          </button>
         </div>
-        <div className="workspace-switcher">
-          <span className="status-dot" />
+        <div className="scope-card">
+          <span className="live-dot" />
           <div>
             <small>Workspace</small>
-            <strong>تشخیص کسب‌وکار</strong>
+            <strong>{scope?.workspaceName ?? '—'}</strong>
+            <span>{scope?.organizationName ?? '—'}</span>
           </div>
           <ChevronLeft size={15} />
         </div>
-        <nav className="side-nav" aria-label="ناوبری اصلی">
-          <div className="nav-section-label">مرکز عملیات</div>
-          <a className="nav-item active" href="#overview">
-            <LayoutDashboard size={17} /> نمای کلی
+        <nav aria-label="ناوبری Console">
+          <span className="nav-label">عملیات</span>
+          <a className="rail-link active" href="#overview">
+            <LayoutDashboard size={17} />
+            نمای کلی
           </a>
-          <a className="nav-item" href="#work">
-            <Activity size={17} /> Work و Timeline
+          <a className="rail-link" href="#decisions">
+            <Activity size={17} />
+            صف تصمیم
           </a>
-          <a className="nav-item" href="#flows">
-            <Workflow size={17} /> Flow Catalog
+          <a className="rail-link" href="#memory">
+            <BrainCircuit size={17} />
+            حافظه
           </a>
-          <a className="nav-item" href="#memory">
-            <BrainCircuit size={17} /> حافظهٔ سازمانی
+          <a className="rail-link" href="#economics">
+            <WalletCards size={17} />
+            اقتصاد مصرف
           </a>
-          <div className="nav-section-label">حساب و دسترسی</div>
-          <a className="nav-item" href="#settings">
-            <Settings2 size={17} /> تنظیمات Workspace
+          <span className="nav-label">کنترل</span>
+          <a className="rail-link" href="#governance">
+            <ShieldCheck size={17} />
+            Governance
+          </a>
+          <a className="rail-link" href="#settings">
+            <Settings2 size={17} />
+            تنظیمات
           </a>
         </nav>
-        <div className="sidebar-footer">
-          <div className="runtime-chip">
-            <span className="status-dot green" />
-            <span>Core API</span>
-            <small>{connected ? 'connected' : 'offline'}</small>
+        <div className="rail-foot">
+          <div className="core-state">
+            <span className="live-dot" />
+            <div>
+              <strong>Core API</strong>
+              <small>session معتبر</small>
+            </div>
           </div>
-          <a
-            className="forge-link"
-            href={rootData?.forgeUrl ?? 'http://localhost:5174'}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a href={rootData?.forgeUrl ?? 'http://localhost:5174'}>
             رفتن به Forge <ArrowUpLeft size={14} />
           </a>
         </div>
       </aside>
 
-      <main className="main-content" id="overview">
-        <header className="topbar">
+      <main className="console-main" id="overview">
+        <header className="console-topbar">
           <div>
-            <span className="breadcrumb">Casioplus / Console / نمای کلی</span>
-            <h1>
-              صبح بخیر، هادی <span className="wave">—</span>
-            </h1>
+            <span>Console / {scope?.organizationName}</span>
+            <strong>{scope?.workspaceName}</strong>
           </div>
           <div className="topbar-actions">
-            <span className={`connection-pill ${connected ? 'is-connected' : ''}`}>
-              <span className="status-dot" /> {connected ? 'Session فعال' : 'نیازمند اتصال'}
-            </span>
-            <div className="avatar">هـ</div>
+            <button className="command-trigger" onClick={() => setCommandOpen(true)}>
+              <Search size={15} />
+              جست‌وجو و اقدام <kbd>⌘ K</kbd>
+            </button>
+            <div className="identity-chip">
+              <div>{session.user.displayName.slice(0, 1)}</div>
+              <span>
+                <strong>{session.user.displayName}</strong>
+                <small>{session.context.role}</small>
+              </span>
+            </div>
+            <button className="icon-control" onClick={logout} aria-label="خروج">
+              <LogOut size={17} />
+            </button>
           </div>
         </header>
 
-        <div className="content-wrap">
-          <section className="hero-card">
-            <div className="hero-copy">
-              <div className="eyebrow light">Golden Flow / Business Diagnosis</div>
-              <h2>از مسئلهٔ کسب‌وکار تا تصمیم قابل‌اتکا.</h2>
-              <p>
-                ورودی فرم، اجرای Flow، خروجی ساختاریافته و حافظهٔ governed را در یک مسیر شفاف دنبال
-                کنید.
-              </p>
-              <div className="hero-actions">
-                <a className="button button-lime" href="#new-work">
-                  <Plus size={17} /> شروع Work جدید
-                </a>
-                <a className="text-link light-link" href="#flows">
-                  مشاهدهٔ Flowها <ArrowUpLeft size={15} />
-                </a>
-              </div>
+        <div className="console-content">
+          <section className="signal-header">
+            <div>
+              <span className="section-code">CONTROL / NOW</span>
+              <h1>تصمیم‌های امروز، با تبار کامل.</h1>
+              <p>صف کار، اجرای Flow، حافظهٔ promoted و اقتصاد مصرف را در scope فعلی دنبال کنید.</p>
             </div>
-            <div className="hero-orbit" aria-hidden="true">
-              <div className="orbit-ring ring-one" />
-              <div className="orbit-ring ring-two" />
-              <div className="orbit-core">
-                <Sparkles size={22} />
-              </div>
-              <span className="orbit-label label-one">Work</span>
-              <span className="orbit-label label-two">Run</span>
-              <span className="orbit-label label-three">Memory</span>
-            </div>
+            <a className="primary-action" href="#new-work">
+              <Plus size={16} />
+              Work جدید
+            </a>
           </section>
 
-          <SessionPanel token={token} onSave={saveToken} onClear={clearToken} />
-
           {error && (
-            <div className="alert alert-error">
-              <CircleAlert size={17} /> <span>{error}</span>
+            <div className="inline-alert error">
+              <CircleAlert size={16} />
+              <span>{error}</span>
               <button onClick={() => setError('')}>بستن</button>
             </div>
           )}
           {notice && (
-            <div className="alert alert-success">
-              <CheckCircle2 size={17} /> <span>{notice}</span>
+            <div className="inline-alert success">
+              <CheckCircle2 size={16} />
+              <span>{notice}</span>
               <button onClick={() => setNotice('')}>بستن</button>
             </div>
           )}
 
-          <section className="metric-grid" aria-label="شاخص‌های workspace">
-            {metrics.map((metric) => (
-              <article className="metric-card" key={metric.label}>
-                <div className={`metric-icon ${metric.accent}`}>
-                  <Activity size={16} />
-                </div>
-                <div>
-                  <span>{metric.label}</span>
-                  <strong>{loading ? '—' : metric.value}</strong>
-                </div>
-                <span className="metric-trend">اکنون</span>
+          <section className="signal-strip" aria-label="شاخص‌های واقعی Workspace">
+            {metrics.map(({ label, value, icon: Icon }) => (
+              <article key={label}>
+                <Icon size={16} />
+                <span>{label}</span>
+                <strong>{loading ? '—' : value}</strong>
               </article>
             ))}
           </section>
 
-          <div className="section-heading" id="work">
-            <div>
-              <div className="eyebrow">Work queue</div>
-              <h2>مسئله‌های در حال رسیدگی</h2>
-            </div>
-            <a className="text-link" href="#new-work">
-              مشاهدهٔ همه <ArrowUpLeft size={15} />
-            </a>
-          </div>
-
-          <section className="work-layout">
-            <div className="panel work-panel">
-              <div className="panel-header">
+          <section className="operations-grid" id="decisions">
+            <article className="surface queue-surface">
+              <div className="surface-head">
                 <div>
-                  <span className="panel-kicker">RECENT WORK</span>
-                  <h3>آخرین Workها</h3>
+                  <span>DECISION QUEUE</span>
+                  <h2>Workهای نیازمند حرکت</h2>
                 </div>
-                <span className="count-badge">{data.workItems.length} مورد</span>
+                <b>{data.workItems.length}</b>
               </div>
               {data.workItems.length === 0 ? (
                 <div className="empty-state">
-                  <FileJson2 size={25} />
-                  <p>هنوز Workای ساخته نشده است.</p>
+                  <FileJson2 size={24} />
+                  <strong>صف خالی است</strong>
+                  <span>اولین Work را از فرم کنار صفحه ثبت کنید.</span>
                 </div>
               ) : (
-                <div className="work-list">
-                  {data.workItems.slice(0, 5).map((work) => (
-                    <div className="work-row" key={work.id}>
-                      <div className="work-status">
-                        <span
-                          className={`status-dot ${work.status === 'in_progress' ? 'amber' : 'green'}`}
-                        />
-                      </div>
-                      <div className="work-row-copy">
+                <div className="data-list">
+                  {data.workItems.slice(0, 6).map((work) => (
+                    <div className="data-row" key={work.id}>
+                      <span className={`status-mark ${work.status}`} />
+                      <div>
                         <strong>{work.title}</strong>
-                        <span>{work.intent || 'بدون توضیح'}</span>
+                        <span>{work.intent || 'بدون context تکمیلی'}</span>
                       </div>
-                      <div className="work-row-meta">
-                        <span className="status-label">{statusLabel(work.status)}</span>
+                      <div>
+                        <b>{statusLabel(work.status)}</b>
                         <small>{dateLabel(work.createdAt)}</small>
                       </div>
-                      <ChevronLeft size={16} className="row-arrow" />
+                      <ChevronLeft size={16} />
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-            <div className="panel run-panel" id="flows">
-              <div className="panel-header">
+            </article>
+
+            <article className="surface timeline-surface">
+              <div className="surface-head">
                 <div>
-                  <span className="panel-kicker">RUN TIMELINE</span>
-                  <h3>اجرای اخیر</h3>
+                  <span>RUN TIMELINE</span>
+                  <h2>آخرین اجراها</h2>
                 </div>
-                <span className="live-indicator">
-                  <span className="pulse" /> live
+                <span className="live-label">
+                  <i />
+                  live
                 </span>
               </div>
               {data.runs.length === 0 ? (
                 <div className="empty-state">
-                  <Activity size={25} />
-                  <p>با اجرای اولین Work، Timeline اینجا ظاهر می‌شود.</p>
+                  <Activity size={24} />
+                  <strong>اجرایی ثبت نشده</strong>
+                  <span>پس از اجرای Flow، رخدادهای واقعی اینجا ظاهر می‌شوند.</span>
                 </div>
               ) : (
-                <div className="run-list">
-                  {data.runs.slice(0, 4).map((run) => (
-                    <div className="run-row" key={run.id}>
-                      <div className={`run-bullet ${run.status}`}>
-                        <CheckCircle2 size={13} />
-                      </div>
+                <div className="timeline-list">
+                  {data.runs.slice(0, 5).map((run) => (
+                    <div key={run.id}>
+                      <span className={`timeline-node ${run.status}`} />
                       <div>
                         <strong>{statusLabel(run.status)}</strong>
-                        <span>Run / {run.id.slice(0, 8)}</span>
+                        <span>{run.id.slice(0, 8)}</span>
                       </div>
                       <small>{dateLabel(run.createdAt)}</small>
                     </div>
@@ -458,114 +714,167 @@ function Console() {
                 </div>
               )}
               {activeFlow && (
-                <div className="active-flow-line">
+                <div className="selected-flow">
                   <Workflow size={15} />
-                  <span>
-                    Flow منتخب: <b>{activeFlow.name}</b>
-                  </span>
+                  <span>Flow فعال</span>
+                  <strong>{activeFlow.name}</strong>
                 </div>
               )}
-            </div>
+            </article>
           </section>
 
           <section className="lower-grid">
-            <form className="panel create-panel" id="new-work" onSubmit={createWorkItem}>
-              <div className="panel-header">
+            <form className="surface work-form" id="new-work" onSubmit={createWorkItem}>
+              <div className="surface-head">
                 <div>
-                  <span className="panel-kicker">NEW WORK</span>
-                  <h3>شروع یک تشخیص</h3>
+                  <span>NEW WORK</span>
+                  <h2>تعریف مسئله</h2>
                 </div>
-                <div className="form-step">۰۱ / ۰۳</div>
+                <span>۰۱ / ۰۲</span>
               </div>
               <label>
                 عنوان مسئله
                 <input
                   value={workTitle}
                   onChange={(event) => setWorkTitle(event.target.value)}
-                  placeholder="مثلاً: طراحی پروفایل مدیر عملیات"
-                  disabled={!connected}
+                  placeholder="یک مسئلهٔ تصمیم‌پذیر"
                 />
               </label>
               <label>
-                هدف یا context<span className="optional">اختیاری</span>
+                نتیجهٔ مورد انتظار
                 <textarea
                   value={workIntent}
                   onChange={(event) => setWorkIntent(event.target.value)}
                   placeholder="چه تصمیمی باید با شواهد بهتر گرفته شود؟"
-                  disabled={!connected}
                 />
               </label>
-              <button
-                className="button button-primary full-width"
-                type="submit"
-                disabled={!connected || !workTitle.trim()}
-              >
-                <Plus size={17} /> ساخت Work و ادامه
+              <button className="primary-action" type="submit" disabled={!workTitle.trim()}>
+                <Plus size={16} />
+                ثبت Work
               </button>
-              {!connected && (
-                <small className="form-hint">ابتدا Session را در بالا متصل کنید.</small>
-              )}
             </form>
-            <section className="panel memory-panel" id="memory">
-              <div className="panel-header">
+
+            <section className="surface memory-surface" id="memory">
+              <div className="surface-head">
                 <div>
-                  <span className="panel-kicker">GOVERNED MEMORY</span>
-                  <h3>حافظهٔ قابل اتکا</h3>
+                  <span>GOVERNED MEMORY</span>
+                  <h2>جست‌وجوی promoted knowledge</h2>
                 </div>
-                <BrainCircuit size={21} className="panel-icon" />
+                <BrainCircuit size={20} />
               </div>
-              <form className="memory-search" onSubmit={searchMemory}>
-                <Search size={17} />
+              <form className="search-field" onSubmit={searchMemory}>
+                <Search size={16} />
                 <input
                   value={memoryQuery}
                   onChange={(event) => setMemoryQuery(event.target.value)}
-                  placeholder="در حافظه جست‌وجو کنید…"
-                  disabled={!connected}
+                  placeholder="یافته، تصمیم یا الگو…"
                 />
-                <button type="submit" aria-label="جست‌وجو" disabled={!connected}>
-                  <ArrowUpLeft size={16} />
+                <button aria-label="جست‌وجو">
+                  <ArrowLeft size={16} />
                 </button>
               </form>
-              {searched && data.memories.length === 0 ? (
-                <div className="memory-empty">نتیجه‌ای در scope فعلی پیدا نشد.</div>
+              {!searched ? (
+                <div className="memory-guide">
+                  <ShieldCheck size={20} />
+                  <span>
+                    فقط رکوردهای معتبر پس از grant، purpose، sensitivity و promotion بازیابی
+                    می‌شوند.
+                  </span>
+                </div>
+              ) : data.memories.length === 0 ? (
+                <div className="empty-state compact">
+                  <strong>نتیجه‌ای در scope فعلی نیست</strong>
+                </div>
               ) : (
-                <div className="memory-list">
-                  {data.memories.slice(0, 3).map((memory) => (
-                    <article className="memory-item" key={memory.id}>
-                      <div className="memory-tag">{memory.kind}</div>
+                <div className="memory-results">
+                  {data.memories.slice(0, 4).map((memory) => (
+                    <article key={memory.id}>
+                      <span>{memory.kind}</span>
                       <strong>{memory.title}</strong>
                       <p>
                         {String(
-                          memory.content.finding ??
-                            memory.content.summary ??
-                            'رکورد تأییدشده برای workspace',
+                          memory.content.finding ?? memory.content.summary ?? 'رکورد governed',
                         )}
                       </p>
                       <small>
-                        {dateLabel(memory.createdAt)} · {memory.sensitivity}
+                        {memory.sensitivity} · {dateLabel(memory.createdAt)}
                       </small>
                     </article>
                   ))}
                 </div>
               )}
-              {!searched && (
-                <div className="memory-empty">
-                  پس از Review و Promotion، دانش تأییدشده در اینجا قابل جست‌وجو است.
-                </div>
-              )}
             </section>
           </section>
 
-          <footer className="page-footer">
-            <span>Casioplus / Console surface</span>
-            <span>
-              Core API · PostgreSQL canonical · {connected ? 'authenticated' : 'not authenticated'}
-            </span>
-          </footer>
+          <section className="economics-band" id="economics">
+            <div>
+              <span>ECONOMICS / ATTRIBUTED</span>
+              <h2>P&amp;L کاسیو از TCO اکوسیستم جداست.</h2>
+              <p>این اعداد فقط از ledger immutable و pricingVersion معتبر می‌آیند.</p>
+            </div>
+            <article>
+              <span>Revenue</span>
+              <strong>{pnl?.revenue ?? '—'}</strong>
+              <small>{pnl?.currency ?? 'بدون داده'}</small>
+            </article>
+            <article>
+              <span>Casioplus cost</span>
+              <strong>{pnl?.casioplus_cost ?? '—'}</strong>
+              <small>{pnl?.currency ?? 'بدون داده'}</small>
+            </article>
+            <article>
+              <span>Ecosystem TCO</span>
+              <strong>{tco?.ecosystem_tco ?? '—'}</strong>
+              <small>{tco?.currency ?? 'بدون داده'}</small>
+            </article>
+          </section>
         </div>
       </main>
+
+      {commandOpen && (
+        <div
+          className="command-backdrop"
+          role="presentation"
+          onMouseDown={() => setCommandOpen(false)}
+        >
+          <section
+            className="command-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="فرمان‌های Console"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div>
+              <Command size={17} />
+              <input autoFocus placeholder="فرمان یا بخش را جست‌وجو کنید…" />
+              <kbd>Esc</kbd>
+            </div>
+            <nav>
+              <a href="#new-work" onClick={() => setCommandOpen(false)}>
+                <Plus size={16} />
+                <span>
+                  <strong>Work جدید</strong>
+                  <small>تعریف مسئله در Workspace فعلی</small>
+                </span>
+              </a>
+              <a href="#memory" onClick={() => setCommandOpen(false)}>
+                <BrainCircuit size={16} />
+                <span>
+                  <strong>جست‌وجوی حافظه</strong>
+                  <small>purpose محدود به Console</small>
+                </span>
+              </a>
+              <a href={rootData?.forgeUrl ?? 'http://localhost:5174'}>
+                <Workflow size={16} />
+                <span>
+                  <strong>بازکردن Forge</strong>
+                  <small>ساخت و انتشار Flow</small>
+                </span>
+              </a>
+            </nav>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
-
-export default Console;

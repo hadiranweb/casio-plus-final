@@ -24,6 +24,7 @@ import {
   runtimeEventSchema,
 } from '../../../packages/contracts/src/index.js';
 import type { ArtifactObjectStore } from './artifact-storage.js';
+import { assertCsrfForCookieRequest } from './auth.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
 import { retrieveGovernedMemory } from './memory-broker.js';
@@ -185,7 +186,10 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       res.setHeader('vary', 'Origin');
       res.setHeader('access-control-allow-credentials', 'true');
     }
-    res.setHeader('access-control-allow-headers', 'authorization, content-type, x-correlation-id');
+    res.setHeader(
+      'access-control-allow-headers',
+      'authorization, content-type, x-correlation-id, x-casioplus-csrf',
+    );
     res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).end();
@@ -200,6 +204,17 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
   if (options.integrationSecrets) {
     mountIntegrationGateway(app, pool, options.integrationSecrets, options.dispatcherSecret);
   }
+
+  app.use((req, _res, next) => {
+    try {
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        assertCsrfForCookieRequest(req);
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
 
   app.get('/healthz', async (_req, res, next) => {
     try {
