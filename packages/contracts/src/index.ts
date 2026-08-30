@@ -40,6 +40,64 @@ export const loginSchema = z.object({
   workspaceId: identifierSchema.optional(),
 });
 
+export const switchContextSchema = z.object({
+  organizationId: identifierSchema,
+  workspaceId: identifierSchema,
+});
+
+export const updateMemberSchema = z
+  .object({
+    role: z.enum(['admin', 'editor', 'reviewer', 'viewer', 'consumer']).optional(),
+    status: z.literal('revoked').optional(),
+  })
+  .refine((input) => input.role !== undefined || input.status !== undefined, {
+    message: 'member update requires role or status',
+  });
+
+export const createExternalAppSchema = z
+  .object({
+    key: z.string().regex(/^[a-z][a-z0-9-]{1,63}$/),
+    name: z.string().trim().min(1).max(200),
+  })
+  .strict();
+
+export const createExternalTenantMappingSchema = z
+  .object({
+    externalAppId: z.string().uuid(),
+    externalTenantRef: z.string().trim().min(1).max(300),
+    workspaceId: z.string().uuid(),
+    externalWorkspaceRef: z.string().trim().min(1).max(300),
+    callbackOrigin: z.string().url().startsWith('https://').optional(),
+    callbackPathPrefix: z.string().regex(/^\//).max(300).default('/'),
+  })
+  .strict();
+
+export const createIntegrationKeyMetadataSchema = z
+  .object({
+    externalAppId: z.string().uuid(),
+    keyId: z.string().regex(/^[A-Za-z0-9._-]{3,100}$/),
+    secretRef: z.string().regex(/^[A-Z][A-Z0-9_]{2,127}$/),
+    validFrom: z.string().datetime().optional(),
+    validUntil: z.string().datetime().optional(),
+    retiringKeyId: z
+      .string()
+      .regex(/^[A-Za-z0-9._-]{3,100}$/)
+      .optional(),
+    retiringValidUntil: z.string().datetime().optional(),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      !input.validFrom ||
+      !input.validUntil ||
+      new Date(input.validUntil).getTime() > new Date(input.validFrom).getTime(),
+    { message: 'validUntil must be later than validFrom', path: ['validUntil'] },
+  )
+  .refine((input) => Boolean(input.retiringKeyId) === Boolean(input.retiringValidUntil), {
+    message: 'retiringKeyId and retiringValidUntil must be supplied together',
+    path: ['retiringKeyId'],
+  });
+
 export const createOrganizationSchema = z.object({
   name: z.string().trim().min(1).max(200),
   slug: slugSchema,
@@ -344,6 +402,8 @@ export const createMemoryGrantSchema = organizationContextSchema.extend({
 export type PublicRuntimeConfig = z.infer<typeof publicRuntimeConfigSchema>;
 export type RegisterAccountInput = z.infer<typeof registerAccountSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type SwitchContextInput = z.infer<typeof switchContextSchema>;
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;

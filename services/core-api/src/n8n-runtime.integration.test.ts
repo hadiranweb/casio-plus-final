@@ -47,6 +47,12 @@ describeWithDatabase('n8n runtime orchestration boundary', () => {
        VALUES ($1, $2, 'owner', 'active')`,
       [organizationId, actorId],
     );
+    await pool.query(
+      `INSERT INTO workspace_memberships
+          (organization_id, workspace_id, actor_id, role, status)
+       VALUES ($1, $2, $3, 'owner', 'active')`,
+      [organizationId, workspaceId, actorId],
+    );
     const workItem = await pool.query<{ id: string }>(
       `INSERT INTO work_items (organization_id, workspace_id, title, created_by_actor_id)
        VALUES ($1, $2, 'n8n Runtime Work', $3) RETURNING id`,

@@ -14,9 +14,9 @@
 
 | حوزه                               | وضعیت                        | شکاف پذیرفته‌شده                                                                                                                      | محل تکمیل          |
 | ---------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| Organization و Workspace           | **Partial**                  | فهرست و ایجاد Workspace وجود دارد، اما switching، member lifecycle و کنترل نقش در UI کامل نیست.                                       | مرحلهٔ ۱۵          |
-| Invitation                         | **Partial**                  | ایجاد و پذیرش token در Core وجود دارد، اما فهرست، revoke، delivery abstraction و UX کامل Console وجود ندارد.                          | مرحلهٔ ۱۵          |
-| External mapping                   | **Partial**                  | schema و server-side resolution موجود است، اما management API و Console برای ExternalApp و ExternalTenant کامل نیست.                  | مرحلهٔ ۱۵          |
+| Organization و Workspace           | **Complete**                 | context switch، multi-Organization، ساخت Workspace، member role/revoke و last-owner invariant در Core و Console تکمیل شد.             | مرحلهٔ ۱۵ بسته شد  |
+| Invitation                         | **Complete برای MVP**        | ایجاد، فهرست، one-time link، پذیرش، revoke، expiry و duplicate guard تکمیل شد؛ ارسال خودکار ایمیل provider-bound است.                 | مرحلهٔ ۱۵ بسته شد  |
+| External mapping                   | **Complete**                 | ExternalApp ownership، key rotation metadata، secret reference، server-side mapping و callback allowlist در Core و Console تکمیل شد.  | مرحلهٔ ۱۵ بسته شد  |
 | Forge Run UX                       | **Partial**                  | ProcessRun و adapter lifecycle در Core کامل است، اما create/execute/status/result در Forge end-to-end نیست.                           | مرحلهٔ ۱۶          |
 | Approval و action governance       | **Partial**                  | target، policy، approval و decision در Core وجود دارد، اما Approval Inbox و controls مدیریتی UI کامل نیست.                            | مرحلهٔ ۱۶          |
 | Runtime metering و economics       | **Partial**                  | immutable ledger و P&L/TCO API موجود است، اما planning assumption و binding management در Console کامل نیست.                          | مرحلهٔ ۱۶          |
@@ -25,7 +25,7 @@
 
 ## معیار پذیرش مرحلهٔ ۱۵
 
-مرحلهٔ ۱۵ فقط زمانی بسته می‌شود که یک owner بتواند در Console سازمان‌ها و Workspaceهای قابل دسترسی را ببیند، context فعال را به‌صورت server-authoritative تغییر دهد، اعضا و نقش‌ها را مدیریت کند، invitation را ایجاد و revoke کند، کاربر مقصد invitation را بپذیرد، و ExternalApp/ExternalTenant mapping را بدون پذیرش شناسهٔ خارجی به‌عنوان authority مدیریت کند. تمام writeها باید از Core/API عبور کنند و integration testهای PostgreSQL باید isolation و role enforcement را اثبات کنند.
+مرحلهٔ ۱۵ بسته شد. owner می‌تواند در Console سازمان‌ها و Workspaceهای قابل دسترسی را ببیند، context فعال را به‌صورت server-authoritative تغییر دهد، اعضا و نقش‌ها را مدیریت کند، invitation را ایجاد و revoke کند، کاربر مقصد invitation را بپذیرد، و ExternalApp/ExternalTenant mapping را بدون پذیرش شناسهٔ خارجی به‌عنوان authority مدیریت کند. همهٔ writeها از Core/API عبور می‌کنند و integration testهای PostgreSQL isolation، role enforcement، session rotation، key lifecycle و mapping isolation را اثبات می‌کنند.
 
 ## معیار پذیرش مرحلهٔ ۱۶
 
@@ -36,3 +36,7 @@
 workflow وابسته به provider حذف و با workflow دستی **Prepare Casioplus Release Candidate** جایگزین شد. این workflow فقط روی PostgreSQL موقت validation، migration، build، Golden Flow، accessibility، n8n import، Compose contract و image build را اجرا می‌کند و artifact شواهد می‌سازد؛ هیچ deploymentی انجام نمی‌دهد. workflow واقعی staging/production فقط پس از انتخاب زیرساخت و secret manager افزوده خواهد شد.
 
 > **خط توقف:** پیش از نصب نرم‌افزار، تغییر firewall، ایجاد database، تنظیم DNS، تزریق secret یا اجرای container روی محیط واقعی، تصمیم کاربر دربارهٔ زیرساخت دریافت می‌شود.
+
+## شواهد مرحلهٔ ۱۵
+
+Full gate روی PostgreSQL تازه اجرا شد: format، typecheck، تمام unit و integration testها، topology، repository security، dependency policy، build، performance budget، Golden Flow، accessibility شش‌حالته، n8n workflow validation و Remix SSR smoke همگی موفق بودند. Browser validation با cookie session و CSRF واقعی، ساخت Organization/Workspace، context switch، invitation create/revoke، ExternalApp، key metadata و ExternalTenant mapping را اجرا کرد. یافته‌های تصویری در [`PHASE15_VISUAL_FINDINGS_FA.md`](PHASE15_VISUAL_FINDINGS_FA.md) و قرارداد اجرایی در [`IDENTITY_INTEGRATION_CONTROL_PLANE_FA.md`](IDENTITY_INTEGRATION_CONTROL_PLANE_FA.md) ثبت شده‌اند.

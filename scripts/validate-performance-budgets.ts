@@ -36,9 +36,17 @@ const graphChunk = consoleAssets.find(
   (asset) => asset.name.startsWith('MemoryGraph3D.client-') && asset.name.endsWith('.js'),
 );
 if (!graphChunk) throw new Error('lazy MemoryGraph3D chunk is missing');
+const organizationControlChunk = consoleAssets.find(
+  (asset) =>
+    asset.name.startsWith('OrganizationControlPanel.client-') && asset.name.endsWith('.js'),
+);
+if (!organizationControlChunk) throw new Error('lazy OrganizationControlPanel chunk is missing');
 
 const consoleInitialJs = consoleAssets
-  .filter((asset) => asset.name.endsWith('.js') && asset !== graphChunk)
+  .filter(
+    (asset) =>
+      asset.name.endsWith('.js') && asset !== graphChunk && asset !== organizationControlChunk,
+  )
   .reduce((total, asset) => total + asset.gzipBytes, 0);
 const forgeInitialJs = forgeAssets
   .filter((asset) => asset.name.endsWith('.js'))
@@ -55,6 +63,11 @@ assertBudget('Forge initial JavaScript gzip', forgeInitialJs, 125 * kib);
 assertBudget('Console CSS gzip', consoleCss, 20 * kib);
 assertBudget('Forge CSS gzip', forgeCss, 20 * kib);
 assertBudget('Memory graph lazy JavaScript gzip', graphChunk.gzipBytes, 150 * kib);
+assertBudget(
+  'Organization control lazy JavaScript gzip',
+  organizationControlChunk.gzipBytes,
+  20 * kib,
+);
 
 console.log(
   JSON.stringify({
@@ -65,6 +78,7 @@ console.log(
       consoleCssGzipBytes: consoleCss,
       forgeCssGzipBytes: forgeCss,
       memoryGraphLazyJsGzipBytes: graphChunk.gzipBytes,
+      organizationControlLazyJsGzipBytes: organizationControlChunk.gzipBytes,
     },
   }),
 );

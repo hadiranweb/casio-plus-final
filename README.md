@@ -4,7 +4,7 @@ Casioplus یک پلتفرم برای ساخت، انتشار و مصرف Flowه�
 
 ## سطوح محصول
 
-`app.casioplus.com` سطح مصرف و عملیات است: Work Board، Timeline، اجرای publication، Review، Artifact و Memory View. `forge.casioplus.com` سطح ساخت و حکمرانی است: Flow builder، input/output، policy، test، version، publication و تنظیمات Runtime. هر دو surface در MVP فقط با Remix ساخته می‌شوند و از Core/API مشترک استفاده می‌کنند؛ Vite صرفاً compiler رسمی Remix است و UI مستقل Vite/React یا static SPA canonical نیست. مرزهای permission و route از ابتدا مستقل تعریف شده‌اند.
+`console.casioplus.com` سطح کنترل و عملیات است: Organization و Workspace، member و invitation، Integration Gateway، Work Board، Timeline، حافظهٔ governed، گراف سه‌بعدی، approval و economics. `forge.casioplus.com` سطح ساخت و اجرا است: Flow builder، version، publication، runtime binding و ProcessRun. هر دو surface فقط با Remix ساخته می‌شوند و از Core/API مشترک استفاده می‌کنند؛ Vite صرفاً compiler رسمی Remix است و UI مستقل Vite/React یا static SPA canonical نیست.
 
 ## مالکیت داده و runtime boundaries
 
@@ -16,8 +16,8 @@ n8n تنها orchestrator است؛ Open WebUI interaction/model plane است؛ O
 
 ```text
 apps/
-  console-web/                 Remix Console surface boundary
-    app/                   root، routes و entryهای Remix
+  console-web/             Remix Console surface boundary
+    app/                   root، routes، componentها و entryهای Remix
   forge-web/              Remix Forge surface boundary
     app/                   root، routes و entryهای Remix
 services/
@@ -26,13 +26,14 @@ services/
   n8n-adapter/             signed orchestration boundary
   open-webui-adapter/      interaction/model boundary
   openclaw-adapter/        restricted action boundary
+  integration-dispatcher/  outbox dispatcher بدون دسترسی مستقیم DB
 packages/
   contracts/               Zod API و runtime contracts
   domain/                  Work, Flow, Run و scientific memory types
   knowledge-model/         memory-plane types
   ui/                      shared presentation primitives
 migrations/                ordered PostgreSQL migrations با checksum registry
-deployment/                Liara release manifest و promotion evidence
+deployment/                provider-neutral release manifest و promotion evidence
 docs/                      Charter، ADR، topology constitution، taxonomy، threat model و Golden Flow
 scripts/                   topology validator، auth issuer و smoke tests
 ```
@@ -61,7 +62,7 @@ Form Submission
 ```bash
 pnpm install
 DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DB pnpm db:migrate
-DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DB SESSION_SECRET='at-least-32-characters' pnpm dev:core
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DB SESSION_SECRET='at-least-32-characters' pnpm dev
 ```
 
 برای smoke محلی با seed database، `pnpm smoke:golden` به‌صورت موقت password role تست را تنظیم و پس از اجرا پاک می‌کند، session امضاشده صادر می‌نماید و raw tenant headers را فعال نمی‌کند. این script برای production نیست و باید به database تست جدا متصل شود.
@@ -75,8 +76,13 @@ pnpm format:check
 pnpm check
 pnpm test
 pnpm validate:topology
+pnpm validate:security
+pnpm security:audit
 pnpm build
+pnpm validate:performance
 pnpm smoke:golden
+pnpm validate:accessibility
+pnpm smoke:remix
 ```
 
 ## تصمیم‌های مهم
@@ -85,9 +91,11 @@ pnpm smoke:golden
 
 در MVP از literal GitHub برای نام entityهای حافظه استفاده نمی‌شود. `Commit` یا `WorkCommit` فقط در صورت نیاز یک view/interaction label محدود برای outcome است؛ مدل canonical حافظه از `OperationalEvent`، `SemanticRecord`، `KnowledgeClaim`، `KnowledgeReview`، `KnowledgePromotion` و `OrganizationalMemoryItem` استفاده می‌کند.
 
-## وضعیت فعلی baseline
+## وضعیت فعلی repository
 
-در baseline فعلی، monorepo، migrationهای ordered با checksum، signed session boundary، membership enforcement، endpointهای Work/Flow/FlowVersion/ProcessRun/RuntimeEvent/Artifact، lifecycle حافظه، Native Diagnosis Worker، قراردادهای n8n/Open WebUI/OpenClaw، smoke script، تست‌های قرارداد/API/auth/worker و CI/CD gated وجود دارد. Console و Forge به‌عنوان دو Remix server app واقعی اما non-public هستند؛ object storage واقعی، identity/onboarding production، service identity کامل، queue و deployment staging در فازهای بعدی تکمیل می‌شوند.
+کد موجود شامل monorepo، migrationهای ordered با checksum، cookie session و CSRF، Organization/Workspace/member/invitation control plane، ownership سازمانی ExternalApp، key rotation metadata، server-side ExternalTenant mapping، Integration Gateway، transactional outbox و Dispatcher است. Memory Broker، namespace و grant governance، artifact-by-reference، immutable usage ledger، P&L/TCO، n8n، Open WebUI و OpenClaw نیز روی همان ProcessRun lifecycle و Core canonical قرار دارند.
+
+Console و Forge Remix با CI، Docker build، Golden Flow، accessibility شش‌حالته و performance budget اعتبارسنجی می‌شوند. repository هنوز deployment انجام‌شده تلقی نمی‌شود؛ انتخاب PostgreSQL، object storage، secret manager، DNS/TLS و محیط runtime در deployment packet مرحلهٔ بعد تعیین می‌شود.
 
 ## اسناد canonical
 

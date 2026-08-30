@@ -5,6 +5,9 @@ import type { loader as rootLoader } from '../root.js';
 import type { MemoryGraphData } from '../components/MemoryGraph3D.client.js';
 
 const MemoryGraph3D = lazy(() => import('../components/MemoryGraph3D.client.js'));
+const OrganizationControlPanel = lazy(
+  () => import('../components/OrganizationControlPanel.client.js'),
+);
 import {
   Activity,
   ArrowLeft,
@@ -356,6 +359,7 @@ export default function Console() {
   const apiBase = rootData?.coreApiUrl ?? 'http://localhost:8080';
   const [session, setSession] = useState<Session | null>(null);
   const [scope, setScope] = useState<OrganizationScope | null>(null);
+  const [availableScopes, setAvailableScopes] = useState<OrganizationScope[]>([]);
   const [data, setData] = useState<ApiState>(initialApiState);
   const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -397,8 +401,15 @@ export default function Console() {
               '/api/v1/usage/summary?view=ecosystem_tco',
             ),
           ]);
+        const activeScope =
+          scopeResponse.items.find(
+            (item) =>
+              item.organizationId === activeSession.context.organizationId &&
+              item.workspaceId === activeSession.context.workspaceId,
+          ) ?? null;
         setSession(activeSession);
-        setScope(scopeResponse.items[0] ?? null);
+        setScope(activeScope);
+        setAvailableScopes(scopeResponse.items);
         setData((current) => ({
           ...current,
           workItems: workResponse.items,
@@ -410,6 +421,8 @@ export default function Console() {
       } catch (requestError) {
         if (requestError instanceof ApiError && requestError.status === 401) {
           setSession(null);
+          setScope(null);
+          setAvailableScopes([]);
           setMemoryGraph(null);
           setData(initialApiState);
         } else {
@@ -510,6 +523,7 @@ export default function Console() {
     } finally {
       setSession(null);
       setScope(null);
+      setAvailableScopes([]);
       setMemoryGraph(null);
       setData(initialApiState);
     }
@@ -573,7 +587,7 @@ export default function Console() {
             <X size={18} />
           </button>
         </div>
-        <div className="scope-card">
+        <a className="scope-card" href="#settings" onClick={() => setRailOpen(false)}>
           <span className="live-dot" />
           <div>
             <small>Workspace</small>
@@ -581,7 +595,7 @@ export default function Console() {
             <span>{scope?.organizationName ?? '—'}</span>
           </div>
           <ChevronLeft size={15} />
-        </div>
+        </a>
         <nav aria-label="ناوبری Console">
           <span className="nav-label">عملیات</span>
           <a className="rail-link active" href="#overview">
@@ -900,6 +914,28 @@ export default function Console() {
               </footer>
             )}
           </section>
+
+          {hydrated && (
+            <Suspense
+              fallback={
+                <section className="organization-control" id="settings">
+                  <div className="memory-graph-placeholder">در حال آماده‌سازی کنترل سازمان…</div>
+                </section>
+              }
+            >
+              <OrganizationControlPanel
+                apiBase={apiBase}
+                csrfToken={csrfToken}
+                currentActorId={session.context.actorId}
+                currentRole={session.context.role}
+                currentScope={scope}
+                availableScopes={availableScopes}
+                onContextChanged={bootstrap}
+                onNotice={setNotice}
+                onError={setError}
+              />
+            </Suspense>
+          )}
 
           <section className="economics-band" id="economics">
             <div>

@@ -114,14 +114,20 @@ async function requireMembership(
 ): Promise<void> {
   if (!enforceMembership) return;
   const result = await pool.query<{ role: OrganizationRole }>(
-    `SELECT m.role
+    `SELECT wm.role
        FROM members m
-       JOIN workspaces w ON w.organization_id = m.organization_id
+       JOIN workspace_memberships wm
+         ON wm.organization_id = m.organization_id
+        AND wm.actor_id = m.actor_id
+        AND wm.status = 'active'
+       JOIN workspaces w
+         ON w.organization_id = wm.organization_id
+        AND w.id = wm.workspace_id
+        AND w.status = 'active'
       WHERE m.organization_id = $1
         AND m.actor_id = $2
         AND m.status = 'active'
-        AND w.id = $3
-        AND w.organization_id = $1
+        AND wm.workspace_id = $3
       LIMIT 1`,
     [context.organizationId, context.actorId, context.workspaceId],
   );
@@ -246,7 +252,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       'access-control-allow-headers',
       'authorization, content-type, x-correlation-id, x-casioplus-csrf',
     );
-    res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
+    res.setHeader('access-control-allow-methods', 'GET,POST,PATCH,OPTIONS');
     if (req.method === 'OPTIONS') {
       res.status(204).end();
       return;

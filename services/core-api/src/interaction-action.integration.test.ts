@@ -44,6 +44,12 @@ describeWithDatabase('interaction and action runtime boundaries', () => {
        VALUES ($1, $2, 'owner', 'active')`,
       [organizationId, actorId],
     );
+    await pool.query(
+      `INSERT INTO workspace_memberships
+          (organization_id, workspace_id, actor_id, role, status)
+       VALUES ($1, $2, $3, 'owner', 'active')`,
+      [organizationId, workspaceId, actorId],
+    );
     const storagePolicy = await pool.query<{ id: string }>(
       `INSERT INTO storage_policies (organization_id, mode, retention_days, deletion_propagation)
        VALUES ($1, 'casio_managed', 365, true) RETURNING id`,
