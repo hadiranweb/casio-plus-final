@@ -1,41 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createOpenWebUiCallbackHeaders,
-  createOpenWebUiContext,
-  createOpenWebUiMessage,
-} from './index.js';
+import { openWebUiModelResponseSchema, openWebUiRuntimeRequestSchema } from './index.js';
 
-const secret = 'open-webui-shared-secret-with-at-least-32-chars';
-
-describe('Open WebUI adapter boundary', () => {
-  it('allows only typed governed tools', () => {
-    const context = createOpenWebUiContext({
-      baseUrl: 'https://webui.example.com',
-      conversationId: 'conversation-1',
-      allowedTools: ['get_work_status', 'retrieve_memory'],
-      callbackUrl: 'https://api.casioplus.com/callbacks/open-webui',
-    });
-    expect(context.allowedTools).toEqual(['get_work_status', 'retrieve_memory']);
-  });
-
-  it('requires a context reference on model messages', () => {
-    expect(() =>
-      createOpenWebUiMessage({ conversationId: 'conversation-1', message: 'hello' }),
-    ).toThrow();
+describe('Open WebUI model-plane contracts', () => {
+  it('accepts a bounded prompt and version-owned model definition', () => {
     expect(
-      createOpenWebUiMessage({
-        conversationId: 'conversation-1',
-        message: 'summarize this work',
-        contextRef: 'work:00000000-0000-4000-8000-000000000001',
+      openWebUiRuntimeRequestSchema.parse({
+        input: { prompt: 'Summarize the governed evidence.' },
+        definition: {
+          model: 'casioplus-default-model',
+          systemPrompt: 'Use only supplied context.',
+          temperature: 0.2,
+          maxTokens: 800,
+        },
       }),
-    ).toMatchObject({ contextRef: 'work:00000000-0000-4000-8000-000000000001' });
+    ).toMatchObject({
+      model: 'casioplus-default-model',
+      prompt: 'Summarize the governed evidence.',
+    });
   });
 
-  it('signs callbacks and rejects short secrets', () => {
-    const rawBody = JSON.stringify({ event: 'assistant.completed', ref: 'run-1' });
-    const headers = createOpenWebUiCallbackHeaders(rawBody, secret);
-    expect(headers['x-casioplus-runtime']).toBe('open-webui');
-    expect(headers['x-casioplus-runtime-signature']).toHaveLength(64);
-    expect(() => createOpenWebUiCallbackHeaders(rawBody, 'short')).toThrow();
+  it('rejects missing prompts and invalid model definitions', () => {
+    expect(() =>
+      openWebUiRuntimeRequestSchema.parse({
+        input: { message: 'No authoritative prompt field' },
+        definition: { model: 'model-a' },
+      }),
+    ).toThrow();
+    expect(() =>
+      openWebUiRuntimeRequestSchema.parse({
+        input: { prompt: 'hello' },
+        definition: { model: '' },
+      }),
+    ).toThrow();
+  });
+
+  it('accepts whole-reply usage returned by Open WebUI', () => {
+    const response = openWebUiModelResponseSchema.parse({
+      id: 'completion-1',
+      model: 'model-a',
+      choices: [{ message: { content: 'Completed response' } }],
+      usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 },
+    });
+    expect(response.usage?.total_tokens).toBe(20);
   });
 });

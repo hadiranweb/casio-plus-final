@@ -1,9 +1,25 @@
-# Casioplus OpenClaw adapter
+# Casioplus OpenClaw Adapter
 
-OpenClaw در Casioplus فقط **action plane** محدود است و owner هیچ‌کدام از Work، Run، Artifact یا Memory نیست. هر action باید در allowlist باشد، به approval معتبر وصل شود، زمان انقضا و idempotency key داشته باشد و نتیجهٔ آن از Core/API و audit عبور کند.
+OpenClaw در Casioplus فقط **action plane محدود، deterministic و approval-gated** است. Core/API مالک Flow، ProcessRun، target، policy، approval، outbox، audit، usage و lifecycle باقی می‌ماند. Adapter هیچ دسترسی PostgreSQL ندارد و فقط outbox item احرازشده را پس از resolve شدن policy و approval در Core اجرا می‌کند.
 
-قرارداد `src/index.ts` فقط سه action MVP را می‌پذیرد: `send_message`، `create_ticket` و `post_webhook`. actionهایی مانند shell execution، تغییر credential یا دسترسی مستقیم به PostgreSQL عمداً خارج از schema هستند. secret امضای action باید در secret manager بماند و هرگز به Console، Forge یا مدل نمایش داده نشود.
+MVP فقط action `send_message` را می‌پذیرد. target خام، channel، account، callback URL یا privilege از درخواست کاربر یا definition Flow به OpenClaw منتقل نمی‌شود. Core فقط یک `executorRef` ثبت‌شده در policy تولید می‌کند و adapter آن را از `OPENCLAW_EXECUTOR_TARGETS_JSON` به channel و target واقعی resolve می‌کند. payload دارای approval ID، expiry، payload hash کنترل‌شده در Core و idempotency key پایدار است.
 
-## وضعیت MVP
+## قرارداد runtime
 
-validation و HMAC header در adapter آماده و در `src/index.test.ts` پوشش داده شده است. اتصال شبکهٔ واقعی OpenClaw تا زمان تثبیت approval persistence، replay protection و staging private network deferred است؛ این package به‌تنهایی side effect خارجی اجرا نمی‌کند.
+| مورد           | مقدار                                                      |
+| -------------- | ---------------------------------------------------------- |
+| Port           | `8084`                                                     |
+| Health         | `GET /healthz`                                             |
+| Dispatch       | `POST /dispatch`                                           |
+| Operation      | `action.send_message`                                      |
+| Authentication | `x-casioplus-adapter-secret`                               |
+| Execution      | `openclaw gateway call send` با `idempotencyKey` canonical |
+| Persistence    | state داخلی OpenClaw؛ بدون canonical DB access             |
+
+## تنظیمات الزامی
+
+`ADAPTER_SHARED_SECRET`، `OPENCLAW_GATEWAY_URL`، `OPENCLAW_GATEWAY_TOKEN` و `OPENCLAW_EXECUTOR_TARGETS_JSON` الزامی‌اند. نسخهٔ CLI در image به `2026.7.1-2` pin شده و Node runtime آن مستقل از Core است.
+
+## Activation gates
+
+پیش از فعال‌سازی باید OpenClaw Gateway در private network باشد، release یا digest image ثابت باشد، onboarding و channel credentialها خارج از Git انجام شوند، target map فقط allowlist مصوب باشد، approval و payload-hash test روی PostgreSQL واقعی عبور کند، duplicate delivery با idempotency تأیید شود و هیچ action دیگری از contract عبور نکند. متن پیام در invocation process قرار می‌گیرد؛ بنابراین adapter باید در PID namespace ایزوله و بدون co-tenant اجرا شود و دسترسی diagnostic به process list محدود باشد تا direct Gateway client پایدار در release آینده جایگزین CLI invocation شود.

@@ -63,10 +63,38 @@ units:
     persistence: runtime-internal-only
   open-webui-adapter:
     path: services/open-webui-adapter
+    status: authenticated-model-only-boundary
     public: false
+    port: 8083
+    health: /healthz
+    canonical_store_access: false
+    dockerfile: deployment/Dockerfile.open-webui-adapter
+    docker_build_validation: ci
+  open-webui-runtime:
+    path: runtime/open-webui
+    status: pinned-private-runtime
+    image: ghcr.io/open-webui/open-webui:v0.11.1
+    role: interaction-model-plane-only
+    public: false
+    canonical_store_access: false
+    persistence: runtime-internal-only
   openclaw-adapter:
     path: services/openclaw-adapter
+    status: approval-gated-action-boundary
     public: false
+    port: 8084
+    health: /healthz
+    canonical_store_access: false
+    dockerfile: deployment/Dockerfile.openclaw-adapter
+    docker_build_validation: ci
+  openclaw-runtime:
+    path: runtime/openclaw
+    status: pinned-private-runtime
+    image: ghcr.io/openclaw/openclaw:2026.7.1-2
+    role: allowlisted-action-plane-only
+    public: false
+    canonical_store_access: false
+    persistence: runtime-internal-only
 resources:
   postgres:
     purpose: canonical
@@ -86,6 +114,9 @@ promotion:
     - tenant-isolation
     - n8n-workflow-validation
     - n8n-adapter-authentication
+    - open-webui-model-only-contract
+    - openclaw-approval-and-target-resolution
+    - runtime-usage-attribution
     - golden-flow-e2e
     - artifact-delivery
     - rollback-pointer

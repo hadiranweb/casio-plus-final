@@ -11,7 +11,7 @@ const configurationSchema = z.object({
   pollIntervalMs: z.number().int().min(100).max(60_000).default(1_000),
 });
 
-const n8nAdapterResultSchema = z.object({
+const adapterResultSchema = z.object({
   status: z.enum(['succeeded', 'failed']),
   executionId: z.string().trim().min(1).max(200).optional(),
   output: z.record(z.string(), z.unknown()).optional(),
@@ -19,6 +19,16 @@ const n8nAdapterResultSchema = z.object({
     .string()
     .regex(/^[a-z][a-z0-9_.-]{1,127}$/)
     .optional(),
+  runtime: z.enum(['n8n', 'open-webui', 'openclaw']).optional(),
+  model: z.string().trim().min(1).max(200).optional(),
+  usage: z
+    .object({
+      inputTokens: z.number().int().nonnegative(),
+      outputTokens: z.number().int().nonnegative(),
+      totalTokens: z.number().int().nonnegative(),
+    })
+    .optional(),
+  latencyMs: z.number().int().nonnegative().optional(),
 });
 
 const outboxItemSchema = z.object({
@@ -83,7 +93,7 @@ async function acknowledge(
   config: Configuration,
   item: OutboxItem,
   result:
-    | { status: 'dispatched'; adapterResult?: z.infer<typeof n8nAdapterResultSchema> }
+    | { status: 'dispatched'; adapterResult?: z.infer<typeof adapterResultSchema> }
     | { status: 'retry'; errorCode: string; retryAfterSeconds: number }
     | { status: 'dead_letter'; errorCode: string },
 ): Promise<void> {
@@ -137,22 +147,18 @@ async function dispatch(config: Configuration, item: OutboxItem): Promise<void> 
       );
       return;
     }
-    if (item.destination === 'n8n') {
-      let adapterResult: z.infer<typeof n8nAdapterResultSchema>;
-      try {
-        adapterResult = n8nAdapterResultSchema.parse(await response.json());
-      } catch {
-        await acknowledge(config, item, {
-          status: item.attempts >= 8 ? 'dead_letter' : 'retry',
-          errorCode: 'adapter_invalid_response',
-          retryAfterSeconds: retryDelaySeconds(item.attempts),
-        });
-        return;
-      }
-      await acknowledge(config, item, { status: 'dispatched', adapterResult });
+    let adapterResult: z.infer<typeof adapterResultSchema>;
+    try {
+      adapterResult = adapterResultSchema.parse(await response.json());
+    } catch {
+      await acknowledge(config, item, {
+        status: item.attempts >= 8 ? 'dead_letter' : 'retry',
+        errorCode: 'adapter_invalid_response',
+        retryAfterSeconds: retryDelaySeconds(item.attempts),
+      });
       return;
     }
-    await acknowledge(config, item, { status: 'dispatched' });
+    await acknowledge(config, item, { status: 'dispatched', adapterResult });
   } catch (error) {
     const errorCode =
       error instanceof Error && error.message.startsWith('destination_not_configured:')

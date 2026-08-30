@@ -1,9 +1,11 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import {
   completeArtifactUploadSchema,
+  createActionPolicySchema,
+  createActionTargetSchema,
   createArtifactSchema,
   createArtifactUploadSchema,
   createFlowSchema,
@@ -13,13 +15,18 @@ import {
   createMemoryNamespaceSchema,
   createPricingAssumptionSchema,
   createProcessRunSchema,
+  createRuntimeMeterBindingSchema,
   createSemanticRecordSchema,
+  decideActionApprovalSchema,
   createWorkItemSchema,
   governedRetrievalSchema,
   knowledgePromotionSchema,
   nativeExecutionResultSchema,
+  openClawRuntimeDefinitionSchema,
+  openWebUiRuntimeDefinitionSchema,
   organizationContextSchema,
   recordUsageEventSchema,
+  requestActionApprovalSchema,
   reviewDecisionSchema,
   runtimeEventSchema,
 } from '../../../packages/contracts/src/index.js';
@@ -124,6 +131,54 @@ async function requireMembership(
   if (!allowedRoles.includes(role)) {
     throw new HttpError(403, 'insufficient_role');
   }
+}
+
+type RuntimeMeteringSnapshot = {
+  bindingId: string;
+  pricingVersionId: string;
+  runtime: 'open-webui' | 'openclaw';
+  operation: 'model.chat.complete' | 'action.send_message';
+  resourceKey: string;
+  currency: string;
+  payer: 'casioplus' | 'customer' | 'external_product' | 'shared';
+  directUnitCost: string;
+  inputTokenUnitCost: string;
+  outputTokenUnitCost: string;
+  allocatedSharedCost: string;
+  billableMultiplier: string;
+};
+
+async function resolveRuntimeMetering(
+  client: PoolClient,
+  organizationId: string,
+  runtime: RuntimeMeteringSnapshot['runtime'],
+  operation: RuntimeMeteringSnapshot['operation'],
+  resourceKey: string,
+): Promise<RuntimeMeteringSnapshot> {
+  const result = await client.query<RuntimeMeteringSnapshot>(
+    `SELECT rmb.id AS "bindingId", rmb.pricing_version_id AS "pricingVersionId",
+            rmb.runtime, rmb.operation, rmb.resource_key AS "resourceKey",
+            rmb.currency, rmb.payer, rmb.direct_unit_cost AS "directUnitCost",
+            rmb.input_token_unit_cost AS "inputTokenUnitCost",
+            rmb.output_token_unit_cost AS "outputTokenUnitCost",
+            rmb.allocated_shared_cost AS "allocatedSharedCost",
+            rmb.billable_multiplier AS "billableMultiplier"
+       FROM runtime_meter_bindings rmb
+       JOIN pricing_assumption_versions pav ON pav.id = rmb.pricing_version_id
+      WHERE rmb.organization_id = $1 AND rmb.runtime = $2
+        AND rmb.operation = $3 AND rmb.resource_key = $4
+        AND rmb.status = 'active' AND rmb.valid_from <= now()
+        AND (rmb.valid_until IS NULL OR rmb.valid_until > now())
+        AND pav.status = 'active' AND pav.effective_from <= now()
+        AND (pav.effective_until IS NULL OR pav.effective_until > now())
+        AND (pav.organization_id IS NULL OR pav.organization_id = $1)
+      ORDER BY rmb.valid_from DESC
+      LIMIT 1`,
+    [organizationId, runtime, operation, resourceKey],
+  );
+  const snapshot = result.rows[0];
+  if (!snapshot) throw new HttpError(503, 'runtime_metering_not_configured');
+  return snapshot;
 }
 
 function runStatusForEvent(type: string): 'running' | 'succeeded' | 'failed' | null {
@@ -529,6 +584,269 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     }
   });
 
+  app.post('/api/v1/action-targets', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const input = createActionTargetSchema.parse({ ...req.body, ...context });
+      const inserted = await pool.query(
+        `INSERT INTO action_targets
+            (organization_id, workspace_id, key, action, executor_ref, created_by_actor_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
+                   key, action, executor_ref AS "executorRef", status, created_at AS "createdAt"`,
+        [
+          input.organizationId,
+          input.workspaceId,
+          input.key,
+          input.action,
+          input.executorRef,
+          input.actorId,
+        ],
+      );
+      return res.status(201).json({ target: inserted.rows[0], requestId: requestId(req) });
+    } catch (error) {
+      if (hasPgCode(error, '23505')) return next(new HttpError(409, 'action_target_conflict'));
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/action-policies', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const input = createActionPolicySchema.parse({ ...req.body, ...context });
+      const inserted = await pool.query(
+        `INSERT INTO action_policies
+            (organization_id, workspace_id, flow_id, flow_version_id, target_id, action,
+             risk_class, approval_required, valid_from, valid_until, created_by_actor_id)
+         SELECT $1, $2, f.id, fv.id, at.id, $6, $7, TRUE,
+                COALESCE($8::timestamptz, now()), $9::timestamptz, $10
+           FROM flows f
+           JOIN flow_versions fv ON fv.flow_id = f.id AND fv.id = $4
+           JOIN action_targets at
+             ON at.organization_id = f.organization_id AND at.workspace_id = f.workspace_id
+            AND at.id = $5 AND at.action = $6 AND at.status = 'active'
+          WHERE f.id = $3 AND f.organization_id = $1 AND f.workspace_id = $2
+            AND fv.runtime_binding = 'openclaw'
+         RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
+                   flow_id AS "flowId", flow_version_id AS "flowVersionId",
+                   target_id AS "targetId", action, risk_class AS "riskClass",
+                   approval_required AS "approvalRequired", status,
+                   valid_from AS "validFrom", valid_until AS "validUntil",
+                   created_at AS "createdAt"`,
+        [
+          input.organizationId,
+          input.workspaceId,
+          input.flowId,
+          input.flowVersionId,
+          input.targetId,
+          input.action,
+          input.riskClass,
+          input.validFrom ?? null,
+          input.validUntil ?? null,
+          input.actorId,
+        ],
+      );
+      if (inserted.rowCount !== 1) throw new HttpError(404, 'action_policy_context_not_found');
+      return res.status(201).json({ policy: inserted.rows[0], requestId: requestId(req) });
+    } catch (error) {
+      if (hasPgCode(error, '23505')) return next(new HttpError(409, 'action_policy_conflict'));
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/action-approvals', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, authorRoles, enforceMembership);
+      const input = requestActionApprovalSchema.parse({ ...req.body, ...context });
+      const result = await withTransaction(pool, async (client) => {
+        const existing = await client.query(
+          `SELECT id, status, expires_at AS "expiresAt", created_at AS "createdAt"
+             FROM action_approval_requests
+            WHERE process_run_id = $1 AND organization_id = $2 AND workspace_id = $3
+            FOR UPDATE`,
+          [input.processRunId, input.organizationId, input.workspaceId],
+        );
+        if (existing.rowCount === 1) return { approval: existing.rows[0], idempotent: true };
+        const run = await client.query<{
+          flowId: string;
+          flowVersionId: string;
+          definition: Record<string, unknown>;
+          input: Record<string, unknown>;
+        }>(
+          `SELECT fr.flow_id AS "flowId", fr.flow_version_id AS "flowVersionId",
+                  fv.definition, fr.input
+             FROM flow_runs fr
+             JOIN flow_versions fv ON fv.id = fr.flow_version_id AND fv.flow_id = fr.flow_id
+            WHERE fr.id = $1 AND fr.organization_id = $2 AND fr.workspace_id = $3
+              AND fr.status IN ('queued', 'running') AND fv.runtime_binding = 'openclaw'
+            FOR UPDATE OF fr`,
+          [input.processRunId, input.organizationId, input.workspaceId],
+        );
+        const runRow = run.rows[0];
+        if (!runRow) throw new HttpError(404, 'openclaw_process_run_not_found');
+        const definition = openClawRuntimeDefinitionSchema.parse(runRow.definition);
+        const message = runRow.input.message;
+        if (typeof message !== 'string' || !message.trim() || message.length > 10_000) {
+          throw new HttpError(400, 'openclaw_message_invalid');
+        }
+        const policy = await client.query<{
+          id: string;
+          targetId: string;
+          action: 'send_message';
+          riskClass: 'low' | 'medium' | 'high';
+        }>(
+          `SELECT ap.id, ap.target_id AS "targetId", ap.action, ap.risk_class AS "riskClass"
+             FROM action_policies ap
+             JOIN action_targets at ON at.id = ap.target_id
+            WHERE ap.organization_id = $1 AND ap.workspace_id = $2
+              AND ap.flow_id = $3 AND ap.flow_version_id = $4
+              AND ap.action = $5 AND ap.status = 'active' AND ap.approval_required
+              AND ap.valid_from <= now() AND (ap.valid_until IS NULL OR ap.valid_until > now())
+              AND at.key = $6 AND at.status = 'active'
+            LIMIT 1`,
+          [
+            input.organizationId,
+            input.workspaceId,
+            runRow.flowId,
+            runRow.flowVersionId,
+            definition.action,
+            definition.targetKey,
+          ],
+        );
+        const policyRow = policy.rows[0];
+        if (!policyRow) throw new HttpError(403, 'openclaw_action_not_allowlisted');
+        const requestPayload = { message: message.trim() };
+        const requestPayloadHash = createHash('sha256')
+          .update(JSON.stringify(requestPayload))
+          .digest('hex');
+        const inserted = await client.query(
+          `INSERT INTO action_approval_requests
+              (organization_id, workspace_id, process_run_id, policy_id, target_id, action,
+               risk_class, request_payload, request_payload_hash, requested_by_actor_id, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                   now() + ($11::text || ' seconds')::interval)
+           RETURNING id, process_run_id AS "processRunId", policy_id AS "policyId",
+                     target_id AS "targetId", action, risk_class AS "riskClass",
+                     status, expires_at AS "expiresAt", created_at AS "createdAt"`,
+          [
+            input.organizationId,
+            input.workspaceId,
+            input.processRunId,
+            policyRow.id,
+            policyRow.targetId,
+            policyRow.action,
+            policyRow.riskClass,
+            requestPayload,
+            requestPayloadHash,
+            input.actorId,
+            input.expiresInSeconds,
+          ],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, 'action.approval_requested', $2, 'action_approval', $3, $4)`,
+          [
+            input.organizationId,
+            input.actorId,
+            inserted.rows[0].id,
+            { processRunId: input.processRunId, riskClass: policyRow.riskClass },
+          ],
+        );
+        return { approval: inserted.rows[0], idempotent: false };
+      });
+      return res.status(result.idempotent ? 200 : 201).json({
+        ...result,
+        requestId: requestId(req),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/v1/action-approvals', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, reviewerRoles, enforceMembership);
+      const status = typeof req.query.status === 'string' ? req.query.status : 'pending';
+      if (!['pending', 'approved', 'rejected', 'expired', 'revoked'].includes(status)) {
+        throw new HttpError(400, 'action_approval_status_invalid');
+      }
+      const approvals = await pool.query(
+        `SELECT aar.id, aar.process_run_id AS "processRunId", aar.action,
+                aar.risk_class AS "riskClass", aar.request_payload AS "requestPayload",
+                aar.status, aar.expires_at AS "expiresAt", aar.created_at AS "createdAt",
+                at.key AS "targetKey"
+           FROM action_approval_requests aar
+           JOIN action_targets at ON at.id = aar.target_id
+          WHERE aar.organization_id = $1 AND aar.workspace_id = $2 AND aar.status = $3
+          ORDER BY aar.created_at DESC
+          LIMIT 100`,
+        [context.organizationId, context.workspaceId, status],
+      );
+      return res.json({ approvals: approvals.rows, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/action-approvals/:approvalId/decisions', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, reviewerRoles, enforceMembership);
+      const input = decideActionApprovalSchema.parse({ ...req.body, ...context });
+      const decided = await withTransaction(pool, async (client) => {
+        const approval = await client.query<{ id: string; status: string; expiresAt: Date }>(
+          `SELECT id, status, expires_at AS "expiresAt"
+             FROM action_approval_requests
+            WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+            FOR UPDATE`,
+          [req.params.approvalId, input.organizationId, input.workspaceId],
+        );
+        const row = approval.rows[0];
+        if (!row) throw new HttpError(404, 'action_approval_not_found');
+        if (row.status !== 'pending') throw new HttpError(409, 'action_approval_already_decided');
+        if (row.expiresAt.getTime() <= Date.now()) {
+          await client.query(
+            `UPDATE action_approval_requests
+                SET status = 'expired', decided_at = now(), decision_reason = 'expired before decision'
+              WHERE id = $1`,
+            [row.id],
+          );
+          throw new HttpError(409, 'action_approval_expired');
+        }
+        const updated = await client.query(
+          `UPDATE action_approval_requests
+              SET status = $1, decided_by_actor_id = $2, decision_reason = $3, decided_at = now()
+            WHERE id = $4
+            RETURNING id, process_run_id AS "processRunId", status,
+                      decided_by_actor_id AS "decidedByActorId", decision_reason AS "decisionReason",
+                      decided_at AS "decidedAt"`,
+          [input.decision, input.actorId, input.reason, row.id],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
+           VALUES ($1, $2, $3, 'action_approval', $4, $5)`,
+          [
+            input.organizationId,
+            `action.${input.decision}`,
+            input.actorId,
+            row.id,
+            { reason: input.reason },
+          ],
+        );
+        return updated.rows[0];
+      });
+      return res.json({ approval: decided, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/v1/process-runs/:runId/events', async (req, res, next) => {
     try {
       const context = await resolveTenantContext(req);
@@ -629,6 +947,194 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       if (!runRow) throw new HttpError(404, 'process_run_not_found');
       if (runRow.status !== 'running' && runRow.status !== 'queued') {
         throw new HttpError(409, 'process_run_not_executable');
+      }
+      if (runRow.runtimeBinding === 'open-webui') {
+        const definition = openWebUiRuntimeDefinitionSchema.parse(runRow.definition);
+        const prompt = runRow.input.prompt;
+        if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 50_000) {
+          throw new HttpError(400, 'open_webui_prompt_invalid');
+        }
+        const dispatch = await withTransaction(pool, async (client) => {
+          const idempotencyKey = `process-run:${runRow.id}:open-webui`;
+          const metering = await resolveRuntimeMetering(
+            client,
+            runRow.organizationId,
+            'open-webui',
+            'model.chat.complete',
+            definition.model,
+          );
+          const queued = await client.query(
+            `INSERT INTO integration_outbox
+                (integration_request_id, process_run_id, organization_id, workspace_id,
+                 destination, operation, payload, idempotency_key, timeout_ms, metering_snapshot)
+             VALUES (NULL, $1, $2, $3, 'open-webui', 'model.chat.complete', $4, $5, $6, $7)
+             ON CONFLICT (destination, idempotency_key) DO UPDATE
+               SET updated_at = integration_outbox.updated_at
+             RETURNING id, status, attempts, created_at AS "createdAt"`,
+            [
+              runRow.id,
+              runRow.organizationId,
+              runRow.workspaceId,
+              {
+                processRunId: runRow.id,
+                workItemId: runRow.workItemId,
+                flowId: runRow.flowId,
+                flowVersionId: runRow.flowVersionId,
+                actorId: context.actorId,
+                input: { ...runRow.input, prompt: prompt.trim() },
+                definition,
+              },
+              idempotencyKey,
+              Number(process.env.OPEN_WEBUI_RUNTIME_TIMEOUT_MS ?? 120_000),
+              metering,
+            ],
+          );
+          await client.query(
+            `INSERT INTO runtime_events
+                (organization_id, workspace_id, process_run_id, actor_id, event_type, payload, idempotency_key)
+             VALUES ($1, $2, $3, $4, 'open-webui.dispatch.queued', $5, $6)
+             ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
+            [
+              runRow.organizationId,
+              runRow.workspaceId,
+              runRow.id,
+              context.actorId,
+              { outboxId: queued.rows[0]!.id, model: definition.model },
+              `${idempotencyKey}:queued`,
+            ],
+          );
+          await client.query(
+            `UPDATE flow_runs SET status = 'running'
+              WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+                AND status IN ('queued', 'running')`,
+            [runRow.id, runRow.organizationId, runRow.workspaceId],
+          );
+          return queued.rows[0];
+        });
+        return res.status(202).json({
+          run: { ...runRow, status: 'running' },
+          dispatch,
+          requestId: requestId(req),
+        });
+      }
+      if (runRow.runtimeBinding === 'openclaw') {
+        const definition = openClawRuntimeDefinitionSchema.parse(runRow.definition);
+        const message = runRow.input.message;
+        if (typeof message !== 'string' || !message.trim() || message.length > 10_000) {
+          throw new HttpError(400, 'openclaw_message_invalid');
+        }
+        const dispatch = await withTransaction(pool, async (client) => {
+          const approval = await client.query<{
+            id: string;
+            targetId: string;
+            executorRef: string;
+            expiresAt: Date;
+            requestPayloadHash: string;
+          }>(
+            `SELECT aar.id, aar.target_id AS "targetId", at.executor_ref AS "executorRef",
+                    aar.expires_at AS "expiresAt", aar.request_payload_hash AS "requestPayloadHash"
+               FROM action_approval_requests aar
+               JOIN action_policies ap ON ap.id = aar.policy_id
+               JOIN action_targets at ON at.id = aar.target_id
+              WHERE aar.process_run_id = $1 AND aar.organization_id = $2 AND aar.workspace_id = $3
+                AND aar.status = 'approved' AND aar.expires_at > now()
+                AND aar.action = $4 AND ap.status = 'active' AND at.status = 'active'
+                AND ap.valid_from <= now() AND (ap.valid_until IS NULL OR ap.valid_until > now())
+                AND at.key = $5
+              FOR UPDATE OF aar`,
+            [
+              runRow.id,
+              runRow.organizationId,
+              runRow.workspaceId,
+              definition.action,
+              definition.targetKey,
+            ],
+          );
+          const approvalRow = approval.rows[0];
+          if (!approvalRow) throw new HttpError(409, 'openclaw_approval_required');
+          const currentPayloadHash = createHash('sha256')
+            .update(JSON.stringify({ message: message.trim() }))
+            .digest('hex');
+          if (currentPayloadHash !== approvalRow.requestPayloadHash) {
+            throw new HttpError(409, 'openclaw_approval_payload_mismatch');
+          }
+          const idempotencyKey = `process-run:${runRow.id}:openclaw`;
+          const metering = await resolveRuntimeMetering(
+            client,
+            runRow.organizationId,
+            'openclaw',
+            'action.send_message',
+            definition.action,
+          );
+          const queued = await client.query(
+            `INSERT INTO integration_outbox
+                (integration_request_id, process_run_id, organization_id, workspace_id,
+                 destination, operation, payload, idempotency_key, timeout_ms, metering_snapshot)
+             VALUES (NULL, $1, $2, $3, 'openclaw', 'action.send_message', $4, $5, $6, $7)
+             ON CONFLICT (destination, idempotency_key) DO UPDATE
+               SET updated_at = integration_outbox.updated_at
+             RETURNING id, status, attempts, created_at AS "createdAt"`,
+            [
+              runRow.id,
+              runRow.organizationId,
+              runRow.workspaceId,
+              {
+                processRunId: runRow.id,
+                action: definition.action,
+                executorRef: approvalRow.executorRef,
+                message: message.trim(),
+                approvalId: approvalRow.id,
+                idempotencyKey,
+                expiresAt: approvalRow.expiresAt.toISOString(),
+              },
+              idempotencyKey,
+              Number(process.env.OPENCLAW_RUNTIME_TIMEOUT_MS ?? 60_000),
+              metering,
+            ],
+          );
+          await client.query(
+            `INSERT INTO action_executions
+                (organization_id, workspace_id, process_run_id, approval_id, outbox_id,
+                 action, executor_ref)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (process_run_id) DO NOTHING`,
+            [
+              runRow.organizationId,
+              runRow.workspaceId,
+              runRow.id,
+              approvalRow.id,
+              queued.rows[0]!.id,
+              definition.action,
+              approvalRow.executorRef,
+            ],
+          );
+          await client.query(
+            `INSERT INTO runtime_events
+                (organization_id, workspace_id, process_run_id, actor_id, event_type, payload, idempotency_key)
+             VALUES ($1, $2, $3, $4, 'openclaw.dispatch.queued', $5, $6)
+             ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
+            [
+              runRow.organizationId,
+              runRow.workspaceId,
+              runRow.id,
+              context.actorId,
+              { outboxId: queued.rows[0]!.id, approvalId: approvalRow.id },
+              `${idempotencyKey}:queued`,
+            ],
+          );
+          await client.query(
+            `UPDATE flow_runs SET status = 'running'
+              WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+                AND status IN ('queued', 'running')`,
+            [runRow.id, runRow.organizationId, runRow.workspaceId],
+          );
+          return queued.rows[0];
+        });
+        return res.status(202).json({
+          run: { ...runRow, status: 'running' },
+          dispatch,
+          requestId: requestId(req),
+        });
       }
       if (runRow.runtimeBinding === 'n8n') {
         const dispatch = await withTransaction(pool, async (client) => {
@@ -1147,6 +1653,74 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       if (hasPgCode(error, '23505')) {
         return next(new HttpError(409, 'pricing_assumption_version_conflict'));
       }
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/runtime-meter-bindings', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const input = createRuntimeMeterBindingSchema.parse({ ...req.body, ...context });
+      const validFrom = input.validFrom ?? new Date().toISOString();
+      if (new Date(validFrom).getTime() > Date.now() + 300_000) {
+        throw new HttpError(400, 'runtime_meter_future_activation_not_supported');
+      }
+      const binding = await withTransaction(pool, async (client) => {
+        const pricing = await client.query(
+          `SELECT 1 FROM pricing_assumption_versions
+            WHERE id = $1 AND status = 'active'
+              AND effective_from <= $2::timestamptz
+              AND (effective_until IS NULL OR effective_until > $2::timestamptz)
+              AND (organization_id IS NULL OR organization_id = $3)`,
+          [input.pricingVersionId, validFrom, input.organizationId],
+        );
+        if (pricing.rowCount !== 1) throw new HttpError(404, 'active_pricing_version_not_found');
+        await client.query(
+          `UPDATE runtime_meter_bindings
+              SET status = 'retired', valid_until = $5::timestamptz
+            WHERE organization_id = $1 AND runtime = $2 AND operation = $3
+              AND resource_key = $4 AND status = 'active'`,
+          [input.organizationId, input.runtime, input.operation, input.resourceKey, validFrom],
+        );
+        const inserted = await client.query(
+          `INSERT INTO runtime_meter_bindings
+              (organization_id, runtime, operation, resource_key, pricing_version_id,
+               currency, payer, direct_unit_cost, input_token_unit_cost,
+               output_token_unit_cost, allocated_shared_cost, billable_multiplier,
+               valid_from, valid_until, created_by_actor_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+           RETURNING id, organization_id AS "organizationId", runtime, operation,
+                     resource_key AS "resourceKey", pricing_version_id AS "pricingVersionId",
+                     currency, payer, direct_unit_cost AS "directUnitCost",
+                     input_token_unit_cost AS "inputTokenUnitCost",
+                     output_token_unit_cost AS "outputTokenUnitCost",
+                     allocated_shared_cost AS "allocatedSharedCost",
+                     billable_multiplier AS "billableMultiplier", status,
+                     valid_from AS "validFrom", valid_until AS "validUntil",
+                     created_at AS "createdAt"`,
+          [
+            input.organizationId,
+            input.runtime,
+            input.operation,
+            input.resourceKey,
+            input.pricingVersionId,
+            input.currency,
+            input.payer,
+            input.directUnitCost,
+            input.inputTokenUnitCost,
+            input.outputTokenUnitCost,
+            input.allocatedSharedCost,
+            input.billableMultiplier,
+            validFrom,
+            input.validUntil ?? null,
+            input.actorId,
+          ],
+        );
+        return inserted.rows[0];
+      });
+      return res.status(201).json({ binding, requestId: requestId(req) });
+    } catch (error) {
       next(error);
     }
   });

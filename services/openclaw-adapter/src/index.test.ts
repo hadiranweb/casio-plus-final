@@ -1,34 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { createOpenClawActionHeaders, createOpenClawActionRequest } from './index.js';
+import { openClawActionRequestSchema, parseOpenClawExecutorTargets } from './index.js';
 
-const secret = 'openclaw-shared-secret-with-at-least-32-characters';
 const action = {
-  action: 'post_webhook' as const,
-  target: 'https://partner.example.com/callback',
-  payload: { runId: 'run-1', artifactId: 'artifact-1' },
+  action: 'send_message' as const,
+  executorRef: 'operations.primary',
+  message: 'Production deployment completed.',
   approvalId: '00000000-0000-4000-8000-000000000010',
   idempotencyKey: 'openclaw-action-run-1',
   expiresAt: '2026-12-01T00:00:00.000Z',
 };
 
-describe('OpenClaw adapter boundary', () => {
-  it('accepts only approved, expiring and idempotent action requests', () => {
-    const result = createOpenClawActionRequest(action);
-    expect(result).toMatchObject({
-      action: 'post_webhook',
+describe('OpenClaw action-plane contracts', () => {
+  it('accepts only the deterministic approved message action', () => {
+    expect(openClawActionRequestSchema.parse(action)).toMatchObject({
+      action: 'send_message',
+      executorRef: 'operations.primary',
       approvalId: '00000000-0000-4000-8000-000000000010',
-      idempotencyKey: 'openclaw-action-run-1',
     });
+    expect(() => openClawActionRequestSchema.parse({ ...action, action: 'shell_exec' })).toThrow();
   });
 
-  it('rejects actions outside the allowlist or without approval', () => {
-    expect(() => createOpenClawActionRequest({ ...action, action: 'shell_exec' })).toThrow();
-    expect(() => createOpenClawActionRequest({ ...action, approvalId: 'not-a-uuid' })).toThrow();
+  it('requires approval, expiry and idempotency for every action', () => {
+    expect(() => openClawActionRequestSchema.parse({ ...action, approvalId: 'invalid' })).toThrow();
+    expect(() =>
+      openClawActionRequestSchema.parse({ ...action, idempotencyKey: 'short' }),
+    ).toThrow();
   });
 
-  it('adds an HMAC signature and non-secret runtime marker', () => {
-    const headers = createOpenClawActionHeaders(JSON.stringify(action), secret);
-    expect(headers['x-casioplus-runtime']).toBe('openclaw');
-    expect(headers['x-casioplus-action-signature']).toHaveLength(64);
+  it('loads only typed server-side executor targets', () => {
+    expect(
+      parseOpenClawExecutorTargets(
+        JSON.stringify({
+          'operations.primary': { channel: 'slack', target: 'channel:C123', account: 'ops' },
+        }),
+      ),
+    ).toEqual({
+      'operations.primary': { channel: 'slack', target: 'channel:C123', account: 'ops' },
+    });
+    expect(() =>
+      parseOpenClawExecutorTargets(JSON.stringify({ unsafe: { channel: 'unknown', target: '*' } })),
+    ).toThrow();
   });
 });

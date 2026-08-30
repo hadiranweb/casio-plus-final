@@ -89,12 +89,26 @@ jobs:
       - name: Remix SSR smoke
         run: pnpm smoke:remix
 
+      - name: Validate runtime Compose contracts
+        env:
+          ADAPTER_SHARED_SECRET: ci-adapter-secret-at-least-32-characters
+          OPEN_WEBUI_SECRET_KEY: ci-open-webui-secret-at-least-32-characters
+          OPEN_WEBUI_API_KEY: ci-open-webui-api-key-at-least-32-characters
+          OPEN_WEBUI_ALLOWED_MODELS_JSON: '["casioplus-general"]'
+          OPENCLAW_GATEWAY_TOKEN: ci-openclaw-token-at-least-32-characters
+          OPENCLAW_EXECUTOR_TARGETS_JSON: '{"operations.primary":{"channel":"slack","target":"channel:C123"}}'
+        run: |
+          docker compose -f runtime/open-webui/docker-compose.yml config --quiet
+          docker compose -f runtime/openclaw/docker-compose.yml config --quiet
+
       - name: Validate production images
         run: |
           docker build --file deployment/Dockerfile.core --tag casioplus-core-ci .
           docker build --file deployment/Dockerfile.worker --tag casioplus-worker-ci .
           docker build --file deployment/Dockerfile.dispatcher --tag casioplus-dispatcher-ci .
           docker build --file deployment/Dockerfile.n8n-adapter --tag casioplus-n8n-adapter-ci .
+          docker build --file deployment/Dockerfile.open-webui-adapter --tag casioplus-open-webui-adapter-ci .
+          docker build --file deployment/Dockerfile.openclaw-adapter --tag casioplus-openclaw-adapter-ci .
           docker build --file deployment/Dockerfile.console --tag casioplus-console-ci .
           docker build --file deployment/Dockerfile.forge --tag casioplus-forge-ci .
 

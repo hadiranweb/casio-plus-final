@@ -1,42 +1,52 @@
-import { createHmac } from 'node:crypto';
 import { z } from 'zod';
 
-const absoluteUrlSchema = z.string().url();
-
-export const openWebUiContextSchema = z.object({
-  baseUrl: absoluteUrlSchema,
-  conversationId: z.string().trim().min(1).max(200),
-  allowedTools: z.array(z.enum(['get_work_status', 'retrieve_memory', 'start_flow'])).min(1),
-  callbackUrl: absoluteUrlSchema,
+const runtimeDefinitionSchema = z.object({
+  model: z.string().trim().min(1).max(200),
+  systemPrompt: z.string().trim().min(1).max(20_000).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().min(1).max(131_072).optional(),
 });
 
-export const openWebUiMessageSchema = z.object({
-  conversationId: z.string().trim().min(1).max(200),
-  message: z.string().trim().min(1).max(20_000),
-  contextRef: z.string().trim().min(1).max(200),
+export const openWebUiRuntimeRequestSchema = z
+  .object({
+    input: z.record(z.string(), z.unknown()),
+    definition: runtimeDefinitionSchema,
+  })
+  .transform(({ input, definition }, context) => {
+    const prompt = input.prompt;
+    if (typeof prompt !== 'string' || prompt.trim().length < 1 || prompt.length > 50_000) {
+      context.addIssue({
+        code: 'custom',
+        path: ['input', 'prompt'],
+        message: 'input.prompt must contain between 1 and 50000 characters',
+      });
+      return z.NEVER;
+    }
+    return { ...definition, prompt: prompt.trim() };
+  });
+
+export const openWebUiModelResponseSchema = z.object({
+  id: z.string().trim().min(1).max(500).optional(),
+  model: z.string().trim().min(1).max(200).optional(),
+  choices: z
+    .array(
+      z.object({
+        message: z.object({
+          content: z.string().max(200_000),
+        }),
+      }),
+    )
+    .min(1),
+  usage: z
+    .object({
+      prompt_tokens: z.number().int().nonnegative().optional(),
+      completion_tokens: z.number().int().nonnegative().optional(),
+      input_tokens: z.number().int().nonnegative().optional(),
+      output_tokens: z.number().int().nonnegative().optional(),
+      total_tokens: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
 });
 
-export type OpenWebUiContext = z.infer<typeof openWebUiContextSchema>;
-export type OpenWebUiMessage = z.infer<typeof openWebUiMessageSchema>;
-
-export function createOpenWebUiContext(input: unknown): OpenWebUiContext {
-  return openWebUiContextSchema.parse(input);
-}
-
-export function createOpenWebUiMessage(input: unknown): OpenWebUiMessage {
-  return openWebUiMessageSchema.parse(input);
-}
-
-export function signOpenWebUiCallback(rawBody: string, secret: string): string {
-  if (secret.trim().length < 32)
-    throw new Error('OPEN_WEBUI_SHARED_SECRET must contain at least 32 characters');
-  return createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
-}
-
-export function createOpenWebUiCallbackHeaders(rawBody: string, secret: string) {
-  return {
-    'content-type': 'application/json',
-    'x-casioplus-runtime': 'open-webui',
-    'x-casioplus-runtime-signature': signOpenWebUiCallback(rawBody, secret),
-  };
-}
+export type OpenWebUiRuntimeRequest = z.infer<typeof openWebUiRuntimeRequestSchema>;
+export type OpenWebUiModelResponse = z.infer<typeof openWebUiModelResponseSchema>;

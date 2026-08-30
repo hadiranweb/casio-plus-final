@@ -82,6 +82,14 @@ jobs:
             app_secret: LIARA_N8N_ADAPTER_APP
             dockerfile: deployment/Dockerfile.n8n-adapter
             port: '8082'
+          - unit: open-webui-adapter
+            app_secret: LIARA_OPEN_WEBUI_ADAPTER_APP
+            dockerfile: deployment/Dockerfile.open-webui-adapter
+            port: '8083'
+          - unit: openclaw-adapter
+            app_secret: LIARA_OPENCLAW_ADAPTER_APP
+            dockerfile: deployment/Dockerfile.openclaw-adapter
+            port: '8084'
           - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console
@@ -137,6 +145,14 @@ jobs:
             app_secret: LIARA_N8N_ADAPTER_APP
             dockerfile: deployment/Dockerfile.n8n-adapter
             port: '8082'
+          - unit: open-webui-adapter
+            app_secret: LIARA_OPEN_WEBUI_ADAPTER_APP
+            dockerfile: deployment/Dockerfile.open-webui-adapter
+            port: '8083'
+          - unit: openclaw-adapter
+            app_secret: LIARA_OPENCLAW_ADAPTER_APP
+            dockerfile: deployment/Dockerfile.openclaw-adapter
+            port: '8084'
           - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console

@@ -113,6 +113,44 @@ export const createProcessRunSchema = organizationContextSchema.extend({
   input: z.record(z.string(), z.unknown()),
 });
 
+export const openWebUiRuntimeDefinitionSchema = z.object({
+  model: z.string().trim().min(1).max(200),
+  systemPrompt: z.string().trim().min(1).max(20_000).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().min(1).max(131_072).optional(),
+});
+
+export const openClawRuntimeDefinitionSchema = z.object({
+  action: z.literal('send_message'),
+  targetKey: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+});
+
+export const createActionTargetSchema = organizationContextSchema.extend({
+  key: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+  action: z.literal('send_message'),
+  executorRef: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+});
+
+export const createActionPolicySchema = organizationContextSchema.extend({
+  flowId: identifierSchema,
+  flowVersionId: identifierSchema,
+  targetId: identifierSchema,
+  action: z.literal('send_message'),
+  riskClass: z.enum(['low', 'medium', 'high']),
+  validFrom: z.string().datetime().optional(),
+  validUntil: z.string().datetime().nullable().optional(),
+});
+
+export const requestActionApprovalSchema = organizationContextSchema.extend({
+  processRunId: identifierSchema,
+  expiresInSeconds: z.number().int().min(60).max(86_400),
+});
+
+export const decideActionApprovalSchema = organizationContextSchema.extend({
+  decision: z.enum(['approved', 'rejected']),
+  reason: z.string().trim().min(1).max(2000),
+});
+
 export const runtimeEventSchema = organizationContextSchema.extend({
   processRunId: identifierSchema.nullable(),
   type: z.string().regex(/^[a-z][a-z0-9_.-]{1,127}$/),
@@ -161,6 +199,22 @@ export const createPricingAssumptionSchema = organizationContextSchema.extend({
   assumptions: z.record(z.string(), z.unknown()),
   effectiveFrom: z.string().datetime(),
   effectiveUntil: z.string().datetime().nullable().optional(),
+});
+
+export const createRuntimeMeterBindingSchema = organizationContextSchema.extend({
+  runtime: z.enum(['open-webui', 'openclaw']),
+  operation: z.enum(['model.chat.complete', 'action.send_message']),
+  resourceKey: z.string().trim().min(1).max(200),
+  pricingVersionId: identifierSchema,
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  payer: z.enum(['casioplus', 'customer', 'external_product', 'shared']),
+  directUnitCost: z.string().regex(/^\d+(\.\d{1,12})?$/),
+  inputTokenUnitCost: z.string().regex(/^\d+(\.\d{1,12})?$/),
+  outputTokenUnitCost: z.string().regex(/^\d+(\.\d{1,12})?$/),
+  allocatedSharedCost: z.string().regex(/^\d+(\.\d{1,8})?$/),
+  billableMultiplier: z.string().regex(/^\d+(\.\d{1,6})?$/),
+  validFrom: z.string().datetime().optional(),
+  validUntil: z.string().datetime().nullable().optional(),
 });
 
 export const recordUsageEventSchema = organizationContextSchema.extend({
@@ -297,6 +351,7 @@ export type CreateArtifactInput = z.infer<typeof createArtifactSchema>;
 export type CreateArtifactUploadInput = z.infer<typeof createArtifactUploadSchema>;
 export type CompleteArtifactUploadInput = z.infer<typeof completeArtifactUploadSchema>;
 export type CreatePricingAssumptionInput = z.infer<typeof createPricingAssumptionSchema>;
+export type CreateRuntimeMeterBindingInput = z.infer<typeof createRuntimeMeterBindingSchema>;
 export type RecordUsageEventInput = z.infer<typeof recordUsageEventSchema>;
 export type CreateSemanticRecordInput = z.infer<typeof createSemanticRecordSchema>;
 export type CreateKnowledgeClaimInput = z.infer<typeof createKnowledgeClaimSchema>;

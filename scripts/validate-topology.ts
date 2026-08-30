@@ -24,6 +24,8 @@ const requiredDirectories = [
   'services/core-api',
   'services/integration-dispatcher',
   'services/n8n-adapter',
+  'services/open-webui-adapter',
+  'services/openclaw-adapter',
   'services/native-diagnosis-worker',
   'packages/contracts',
   'packages/domain',
@@ -31,6 +33,8 @@ const requiredDirectories = [
   'packages/ui',
   'migrations',
   'runtime/n8n/workflows',
+  'runtime/open-webui',
+  'runtime/openclaw',
   'deployment',
   'docs',
 ];
@@ -205,18 +209,59 @@ for (const dockerfile of ['deployment/Dockerfile.console', 'deployment/Dockerfil
   }
 }
 
-const n8nAdapterDockerfile = await readFile(
-  resolve(root, 'deployment/Dockerfile.n8n-adapter'),
-  'utf8',
-);
-for (const requiredFragment of [
-  '@casioplus/n8n-adapter build',
-  '@casioplus/n8n-adapter deploy',
-  'USER node',
-  'dist/server.js',
-]) {
-  if (!n8nAdapterDockerfile.includes(requiredFragment)) {
-    throw new Error(`n8n adapter Docker contract missing: ${requiredFragment}`);
+const runtimeAdapterDockerfiles: Record<string, string[]> = {
+  'deployment/Dockerfile.n8n-adapter': [
+    '@casioplus/n8n-adapter build',
+    '@casioplus/n8n-adapter deploy',
+  ],
+  'deployment/Dockerfile.open-webui-adapter': [
+    '@casioplus/open-webui-adapter build',
+    '@casioplus/open-webui-adapter deploy',
+  ],
+  'deployment/Dockerfile.openclaw-adapter': [
+    '@casioplus/openclaw-adapter build',
+    '@casioplus/openclaw-adapter deploy',
+    'openclaw@2026.7.1-2',
+  ],
+};
+for (const [dockerfile, requiredFragments] of Object.entries(runtimeAdapterDockerfiles)) {
+  const content = await readFile(resolve(root, dockerfile), 'utf8');
+  for (const requiredFragment of [...requiredFragments, 'USER node', 'dist/server.js']) {
+    if (!content.includes(requiredFragment)) {
+      throw new Error(`${dockerfile} runtime contract missing: ${requiredFragment}`);
+    }
+  }
+}
+
+const runtimeComposeContracts: Record<string, string[]> = {
+  'runtime/open-webui/docker-compose.yml': [
+    'ghcr.io/open-webui/open-webui:v0.11.1',
+    'internal: true',
+    'OPEN_WEBUI_API_KEY',
+  ],
+  'runtime/openclaw/docker-compose.yml': [
+    'ghcr.io/openclaw/openclaw:2026.7.1-2',
+    'internal: true',
+    'OPENCLAW_GATEWAY_TOKEN',
+  ],
+};
+for (const [composePath, requiredFragments] of Object.entries(runtimeComposeContracts)) {
+  const content = await readFile(resolve(root, composePath), 'utf8');
+  for (const requiredFragment of requiredFragments) {
+    if (!content.includes(requiredFragment)) {
+      throw new Error(`${composePath} contract missing: ${requiredFragment}`);
+    }
+  }
+  for (const forbiddenFragment of [
+    'DATABASE_URL',
+    '\n    ports:',
+    ':latest',
+    ':main\n',
+    ':dev\n',
+  ]) {
+    if (content.includes(forbiddenFragment)) {
+      throw new Error(`${composePath} contains forbidden runtime contract: ${forbiddenFragment}`);
+    }
   }
 }
 
@@ -243,7 +288,8 @@ console.log(
     checkedWorkspacePackages: manifests.size,
     checkedRemixSurfaces: remixSurfaceNames,
     checkedRemixDockerfiles: ['deployment/Dockerfile.console', 'deployment/Dockerfile.forge'],
-    checkedRuntimeDockerfiles: ['deployment/Dockerfile.n8n-adapter'],
+    checkedRuntimeDockerfiles: Object.keys(runtimeAdapterDockerfiles),
+    checkedRuntimeComposeContracts: Object.keys(runtimeComposeContracts),
     forbiddenStandaloneUiPaths: [
       'apps/console-web/src',
       'apps/console-web/index.html',

@@ -28,6 +28,31 @@ const adapterResultSchema = z.object({
     .string()
     .regex(/^[a-z][a-z0-9_.-]{1,127}$/)
     .optional(),
+  runtime: z.enum(['n8n', 'open-webui', 'openclaw']).optional(),
+  model: z.string().trim().min(1).max(200).optional(),
+  usage: z
+    .object({
+      inputTokens: z.number().int().nonnegative(),
+      outputTokens: z.number().int().nonnegative(),
+      totalTokens: z.number().int().nonnegative(),
+    })
+    .optional(),
+  latencyMs: z.number().int().nonnegative().optional(),
+});
+
+const meteringSnapshotSchema = z.object({
+  bindingId: z.string().uuid(),
+  pricingVersionId: z.string().uuid(),
+  runtime: z.enum(['open-webui', 'openclaw']),
+  operation: z.enum(['model.chat.complete', 'action.send_message']),
+  resourceKey: z.string().min(1).max(200),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  payer: z.enum(['casioplus', 'customer', 'external_product', 'shared']),
+  directUnitCost: z.string().regex(/^\d+(\.\d{1,12})?$/),
+  inputTokenUnitCost: z.string().regex(/^\d+(\.\d{1,12})?$/),
+  outputTokenUnitCost: z.string().regex(/^\d+(\.\d{1,12})?$/),
+  allocatedSharedCost: z.string().regex(/^\d+(\.\d{1,8})?$/),
+  billableMultiplier: z.string().regex(/^\d+(\.\d{1,6})?$/),
 });
 
 const outboxResultSchema = z.object({
@@ -285,10 +310,14 @@ export function mountIntegrationGateway(
         const outbox = await client.query<{
           integrationRequestId: string | null;
           processRunId: string | null;
+          destination: 'n8n' | 'open-webui' | 'openclaw';
+          operation: string;
+          meteringSnapshot: unknown;
           attempts: number;
         }>(
           `SELECT integration_request_id AS "integrationRequestId",
-                  process_run_id AS "processRunId", attempts
+                  process_run_id AS "processRunId", destination, operation,
+                  metering_snapshot AS "meteringSnapshot", attempts
              FROM integration_outbox WHERE id = $1 AND status = 'in_progress' FOR UPDATE`,
           [request.params.outboxId],
         );
@@ -331,10 +360,15 @@ export function mountIntegrationGateway(
             organizationId: string;
             workspaceId: string;
             workItemId: string;
+            flowId: string;
+            flowVersionId: string;
+            input: Record<string, unknown>;
             actorId: string;
           }>(
             `SELECT organization_id AS "organizationId", workspace_id AS "workspaceId",
-                    work_item_id AS "workItemId", created_by_actor_id AS "actorId"
+                    work_item_id AS "workItemId", flow_id AS "flowId",
+                    flow_version_id AS "flowVersionId", input,
+                    created_by_actor_id AS "actorId"
                FROM flow_runs WHERE id = $1 FOR UPDATE`,
             [row.processRunId],
           );
@@ -345,7 +379,9 @@ export function mountIntegrationGateway(
           const runStatus = adapterSucceeded ? 'succeeded' : 'failed';
           const errorCode = adapterSucceeded
             ? null
-            : (input.adapterResult?.errorCode ?? input.errorCode ?? 'n8n_dispatch_failed');
+            : (input.adapterResult?.errorCode ??
+              input.errorCode ??
+              `${row.destination.replace('-', '_')}_dispatch_failed`);
           await client.query(
             `UPDATE flow_runs
                 SET status = $1, output = $2, error_code = $3, completed_at = now()
@@ -363,11 +399,120 @@ export function mountIntegrationGateway(
               run.workspaceId,
               row.processRunId,
               run.actorId,
-              adapterSucceeded ? 'n8n.execution.succeeded' : 'n8n.execution.failed',
+              adapterSucceeded
+                ? `${row.destination}.execution.succeeded`
+                : `${row.destination}.execution.failed`,
               input.adapterResult ?? { errorCode },
-              `n8n-result:${request.params.outboxId}`,
+              `${row.destination}-result:${request.params.outboxId}`,
             ],
           );
+          if (adapterSucceeded && row.meteringSnapshot) {
+            const metering = meteringSnapshotSchema.parse(row.meteringSnapshot);
+            if (metering.runtime !== row.destination || metering.operation !== row.operation) {
+              throw new IntegrationGatewayError(409, 'runtime_metering_snapshot_mismatch');
+            }
+            const namespace = await client.query<{ id: string }>(
+              `SELECT id FROM memory_namespaces
+                WHERE organization_id = $1 AND status = 'active'
+                  AND (workspace_id = $2 OR workspace_id IS NULL)
+                ORDER BY CASE WHEN workspace_id = $2 THEN 0 ELSE 1 END,
+                         CASE WHEN namespace_kind = 'governed' THEN 0 ELSE 1 END,
+                         created_at
+                LIMIT 1`,
+              [run.organizationId, run.workspaceId],
+            );
+            const namespaceId = namespace.rows[0]?.id;
+            if (!namespaceId) {
+              throw new IntegrationGatewayError(409, 'usage_namespace_not_found');
+            }
+            const inputTokens = input.adapterResult?.usage?.inputTokens ?? 0;
+            const outputTokens = input.adapterResult?.usage?.outputTokens ?? 0;
+            const inputBytes = Buffer.byteLength(JSON.stringify(run.input), 'utf8');
+            const outputBytes = Buffer.byteLength(
+              JSON.stringify(input.adapterResult?.output ?? {}),
+              'utf8',
+            );
+            const usageSource = {
+              organizationId: run.organizationId,
+              workspaceId: run.workspaceId,
+              flowId: run.flowId,
+              flowVersionId: run.flowVersionId,
+              processRunId: row.processRunId,
+              namespaceId,
+              operation: row.operation,
+              runtime: row.destination,
+              model: input.adapterResult?.model ?? null,
+              inputTokens,
+              outputTokens,
+              inputBytes,
+              outputBytes,
+              latencyMs: input.adapterResult?.latencyMs ?? 0,
+              pricingVersionId: metering.pricingVersionId,
+              meteringBindingId: metering.bindingId,
+            };
+            const sourceHash = createHash('sha256')
+              .update(JSON.stringify(usageSource))
+              .digest('hex');
+            await client.query(
+              `INSERT INTO usage_events
+                  (organization_id, external_app_id, external_tenant_id, workspace_id,
+                   flow_id, flow_version_id, process_run_id, namespace_id, operation,
+                   runtime, model, input_tokens, output_tokens, total_tokens,
+                   input_bytes, output_bytes, total_bytes, latency_ms,
+                   unit_cost, allocated_shared_cost, billable_amount,
+                   currency, payer, pricing_version_id, idempotency_key, source_hash)
+               VALUES ($1, NULL, NULL, $2, $3, $4, $5, $6, $7,
+                       $8, $9, $10, $11, $10::bigint + $11::bigint,
+                       $12, $13, $12::bigint + $13::bigint, $14,
+                       ($15::numeric + $10::numeric * $16::numeric + $11::numeric * $17::numeric),
+                       $18,
+                       (($15::numeric + $10::numeric * $16::numeric + $11::numeric * $17::numeric)
+                         + $18::numeric) * $19::numeric,
+                       $20, $21, $22, $23, $24)
+               ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
+              [
+                run.organizationId,
+                run.workspaceId,
+                run.flowId,
+                run.flowVersionId,
+                row.processRunId,
+                namespaceId,
+                row.operation,
+                row.destination,
+                input.adapterResult?.model ?? null,
+                inputTokens,
+                outputTokens,
+                inputBytes,
+                outputBytes,
+                input.adapterResult?.latencyMs ?? 0,
+                metering.directUnitCost,
+                metering.inputTokenUnitCost,
+                metering.outputTokenUnitCost,
+                metering.allocatedSharedCost,
+                metering.billableMultiplier,
+                metering.currency,
+                metering.payer,
+                metering.pricingVersionId,
+                `runtime-meter:${request.params.outboxId}`,
+                sourceHash,
+              ],
+            );
+          }
+          if (row.destination === 'openclaw') {
+            await client.query(
+              `UPDATE action_executions
+                  SET status = $1, external_result_ref = $2, response = $3,
+                      error_code = $4, completed_at = now()
+                WHERE outbox_id = $5 AND status = 'queued'`,
+              [
+                adapterSucceeded ? 'succeeded' : 'failed',
+                input.adapterResult?.executionId ?? null,
+                input.adapterResult?.output ?? null,
+                errorCode,
+                request.params.outboxId,
+              ],
+            );
+          }
           if (adapterSucceeded) {
             await client.query(
               `UPDATE work_items SET status = 'completed', updated_at = now()

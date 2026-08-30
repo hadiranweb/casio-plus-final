@@ -1,0 +1,62 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.11.1
+    restart: unless-stopped
+    environment:
+      WEBUI_SECRET_KEY: ${OPEN_WEBUI_SECRET_KEY:?OPEN_WEBUI_SECRET_KEY is required}
+      ENABLE_SIGNUP: 'false'
+    expose:
+      - '8080'
+    volumes:
+      - open_webui_data:/app/backend/data
+    networks:
+      - model_plane
+    cap_drop:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8080/health']
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  open-webui-adapter:
+    build:
+      context: ../..
+      dockerfile: deployment/Dockerfile.open-webui-adapter
+    restart: unless-stopped
+    environment:
+      PORT: '8083'
+      ADAPTER_SHARED_SECRET: ${ADAPTER_SHARED_SECRET:?ADAPTER_SHARED_SECRET is required}
+      OPEN_WEBUI_API_URL: http://open-webui:8080
+      OPEN_WEBUI_API_KEY: ${OPEN_WEBUI_API_KEY:?OPEN_WEBUI_API_KEY is required}
+      OPEN_WEBUI_ALLOWED_MODELS_JSON: ${OPEN_WEBUI_ALLOWED_MODELS_JSON:?OPEN_WEBUI_ALLOWED_MODELS_JSON is required}
+      OPEN_WEBUI_TIMEOUT_MS: ${OPEN_WEBUI_TIMEOUT_MS:-120000}
+    expose:
+      - '8083'
+    networks:
+      - model_plane
+      - casioplus_integration
+    cap_drop:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    depends_on:
+      open-webui:
+        condition: service_healthy
+
+volumes:
+  open_webui_data:
+
+networks:
+  model_plane:
+    internal: true
+  casioplus_integration:
+    external: true
+    name: ${CASIOPLUS_INTEGRATION_NETWORK:-casioplus-integration}

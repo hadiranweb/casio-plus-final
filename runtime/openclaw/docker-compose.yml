@@ -1,0 +1,81 @@
+services:
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:2026.7.1-2
+    restart: unless-stopped
+    command:
+      - node
+      - dist/index.js
+      - gateway
+      - --bind
+      - lan
+      - --port
+      - '18789'
+    environment:
+      HOME: /home/node
+      OPENCLAW_HOME: /home/node
+      OPENCLAW_STATE_DIR: /home/node/.openclaw
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+      OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
+      OPENCLAW_SUPERVISOR_MODE: external
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:?OPENCLAW_GATEWAY_TOKEN is required}
+      OPENCLAW_DISABLE_BONJOUR: '1'
+      OPENCLAW_SKIP_ONBOARDING: '1'
+    expose:
+      - '18789'
+    volumes:
+      - openclaw_state:/home/node/.openclaw
+      - openclaw_workspace:/home/node/.openclaw/workspace
+    networks:
+      - action_plane
+    cap_drop:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    healthcheck:
+      test: ['CMD', 'node', 'dist/docker-healthcheck.js']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  openclaw-adapter:
+    build:
+      context: ../..
+      dockerfile: deployment/Dockerfile.openclaw-adapter
+    restart: unless-stopped
+    environment:
+      PORT: '8084'
+      ADAPTER_SHARED_SECRET: ${ADAPTER_SHARED_SECRET:?ADAPTER_SHARED_SECRET is required}
+      OPENCLAW_GATEWAY_URL: ws://openclaw-gateway:18789
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:?OPENCLAW_GATEWAY_TOKEN is required}
+      OPENCLAW_EXECUTOR_TARGETS_JSON: ${OPENCLAW_EXECUTOR_TARGETS_JSON:?OPENCLAW_EXECUTOR_TARGETS_JSON is required}
+      OPENCLAW_TIMEOUT_MS: ${OPENCLAW_TIMEOUT_MS:-60000}
+    expose:
+      - '8084'
+    volumes:
+      - openclaw_state:/home/node/.openclaw
+    networks:
+      - action_plane
+      - casioplus_integration
+    cap_drop:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    depends_on:
+      openclaw-gateway:
+        condition: service_healthy
+
+volumes:
+  openclaw_state:
+  openclaw_workspace:
+
+networks:
+  action_plane:
+    internal: true
+  casioplus_integration:
+    external: true
+    name: ${CASIOPLUS_INTEGRATION_NETWORK:-casioplus-integration}
