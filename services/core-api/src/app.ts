@@ -1143,7 +1143,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
                allocated_shared_cost, billable_amount, currency, payer,
                pricing_version_id, idempotency_key, source_hash)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                   $12, $13, $12 + $13, $14, $15, $14 + $15, $16, $17,
+                   $12, $13, $12::bigint + $13::bigint, $14, $15, $14::bigint + $15::bigint, $16, $17,
                    $18, $19, $20, $21, $22, $23, $24)
            RETURNING id`,
           [
