@@ -58,6 +58,26 @@ function digest(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+async function ensureDefaultMemoryNamespace(
+  database: DatabaseClient,
+  organizationId: string,
+): Promise<void> {
+  const policy = await database.query<{ id: string }>(
+    `INSERT INTO storage_policies (organization_id, mode, retention_days, deletion_propagation)
+     VALUES ($1, 'casio_managed', 365, true)
+     ON CONFLICT (organization_id) DO UPDATE SET updated_at = now()
+     RETURNING id`,
+    [organizationId],
+  );
+  await database.query(
+    `INSERT INTO memory_namespaces
+        (organization_id, workspace_id, storage_policy_id, key, name, namespace_kind)
+     VALUES ($1, NULL, $2, 'organization-memory', 'Organization Memory', 'governed')
+     ON CONFLICT (organization_id, key) DO NOTHING`,
+    [organizationId, policy.rows[0]!.id],
+  );
+}
+
 async function issueSession(
   database: DatabaseClient,
   scope: SessionScope,
@@ -198,6 +218,7 @@ export function mountIdentityRoutes(app: Express, pool: Pool, sessionSecret: str
           [input.organizationName, input.organizationSlug],
         );
         const organizationId = organization.rows[0]!.id;
+        await ensureDefaultMemoryNamespace(client, organizationId);
         const workspace = await client.query<{ id: string }>(
           `INSERT INTO workspaces (organization_id, name, slug)
            VALUES ($1, $2, $3) RETURNING id`,
@@ -366,6 +387,7 @@ export function mountIdentityRoutes(app: Express, pool: Pool, sessionSecret: str
           [input.name, input.slug],
         );
         const organizationId = organization.rows[0]!.id;
+        await ensureDefaultMemoryNamespace(client, organizationId);
         const workspace = await client.query<{ id: string }>(
           `INSERT INTO workspaces (organization_id, name, slug)
            VALUES ($1, $2, $3) RETURNING id`,

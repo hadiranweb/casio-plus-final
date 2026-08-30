@@ -7,6 +7,8 @@ import {
   createFlowSchema,
   createFlowVersionSchema,
   createKnowledgeClaimSchema,
+  createMemoryGrantSchema,
+  createMemoryNamespaceSchema,
   createProcessRunSchema,
   createSemanticRecordSchema,
   createWorkItemSchema,
@@ -19,6 +21,7 @@ import {
 } from '../../../packages/contracts/src/index.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
+import { retrieveGovernedMemory } from './memory-broker.js';
 import {
   mountIntegrationGateway,
   type IntegrationSecretMap,
@@ -33,6 +36,7 @@ export type TenantContextResolver = (req: Request) => TenantContext | Promise<Te
 type OrganizationRole = 'owner' | 'admin' | 'editor' | 'reviewer' | 'viewer' | 'consumer';
 type RequestWithCasioplusId = Request & { casioplusRequestId?: string };
 
+const administrativeRoles: OrganizationRole[] = ['owner', 'admin'];
 const authorRoles: OrganizationRole[] = ['owner', 'admin', 'editor'];
 const reviewerRoles: OrganizationRole[] = ['owner', 'admin', 'reviewer'];
 const participantRoles: OrganizationRole[] = [
@@ -776,11 +780,16 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         }
         const inserted = await client.query(
           `INSERT INTO semantic_records
-              (organization_id, workspace_id, work_item_id, process_run_id,
+              (organization_id, workspace_id, namespace_id, work_item_id, process_run_id,
                record_type, title, summary, payload, outcome, provenance, status, created_by_actor_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, 'pending_review', $10)
+           VALUES ($1, $2,
+                   (SELECT id FROM memory_namespaces
+                     WHERE organization_id = $1 AND key = 'organization-memory' AND status = 'active'
+                     LIMIT 1),
+                   $3, $4, $5, $6, $7, $8, $8, $9, 'pending_review', $10)
            RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
-                     work_item_id AS "workItemId", process_run_id AS "processRunId",
+                     namespace_id AS "namespaceId", work_item_id AS "workItemId",
+                     process_run_id AS "processRunId",
                      record_type AS "type", title, summary, payload, provenance, status,
                      created_by_actor_id AS "createdByActorId", created_at AS "createdAt"`,
           [
@@ -823,8 +832,8 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       await requireMembership(pool, context, authorRoles, enforceMembership);
       const input = createKnowledgeClaimSchema.parse({ ...req.body, ...context });
       const claim = await withTransaction(pool, async (client) => {
-        const source = await client.query(
-          `SELECT 1 FROM semantic_records
+        const source = await client.query<{ namespaceId: string }>(
+          `SELECT namespace_id AS "namespaceId" FROM semantic_records
             WHERE id = $1 AND process_run_id = $2
               AND organization_id = $3 AND workspace_id = $4`,
           [input.semanticRecordId, input.processRunId, input.organizationId, input.workspaceId],
@@ -834,11 +843,12 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         }
         const inserted = await client.query(
           `INSERT INTO knowledge_claims
-              (organization_id, workspace_id, semantic_record_id, process_run_id, subject,
+              (organization_id, workspace_id, namespace_id, semantic_record_id, process_run_id, subject,
                claim_type, content, evidence, confidence, lifecycle, created_by_actor_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_review', $10)
+           VALUES ($1, $2, $11, $3, $4, $5, $6, $7, $8, $9, 'pending_review', $10)
            RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
-                     semantic_record_id AS "semanticRecordId", process_run_id AS "processRunId",
+                     namespace_id AS "namespaceId", semantic_record_id AS "semanticRecordId",
+                     process_run_id AS "processRunId",
                      subject, claim_type AS "claimType", content, evidence, confidence,
                      lifecycle, created_by_actor_id AS "createdByActorId", created_at AS "createdAt"`,
           [
@@ -852,6 +862,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
             JSON.stringify(input.evidence),
             input.confidence ?? null,
             input.actorId,
+            source.rows[0]!.namespaceId,
           ],
         );
         return inserted.rows[0];
@@ -952,9 +963,10 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       const memory = await withTransaction(pool, async (client) => {
         const claim = await client.query<{
           semanticRecordId: string;
+          namespaceId: string;
           lifecycle: string;
         }>(
-          `SELECT semantic_record_id AS "semanticRecordId", lifecycle
+          `SELECT semantic_record_id AS "semanticRecordId", namespace_id AS "namespaceId", lifecycle
              FROM knowledge_claims
             WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
             FOR UPDATE`,
@@ -978,9 +990,9 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         }
         const promotion = await client.query(
           `INSERT INTO knowledge_promotions
-              (organization_id, workspace_id, claim_id, review_id, target_kind,
+              (organization_id, workspace_id, namespace_id, claim_id, review_id, target_kind,
                promoted_by_actor_id, rationale)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           VALUES ($1, $2, $8, $3, $4, $5, $6, $7)
            RETURNING id`,
           [
             input.organizationId,
@@ -990,16 +1002,18 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
             input.targetKind,
             input.actorId,
             input.rationale,
+            claimRow.namespaceId,
           ],
         );
         const inserted = await client.query(
           `INSERT INTO organizational_memory_items
-              (organization_id, workspace_id, kind, title, content,
+              (organization_id, workspace_id, namespace_id, kind, title, content,
                source_semantic_record_id, source_claim_id, promotion_id, source_review_id,
                lifecycle, sensitivity)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'approved', $10)
+           VALUES ($1, $2, $11, $3, $4, $5, $6, $7, $8, $9, 'approved', $10)
            RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
-                     kind, title, content, source_semantic_record_id AS "sourceSemanticRecordId",
+                     namespace_id AS "namespaceId", kind, title, content,
+                     source_semantic_record_id AS "sourceSemanticRecordId",
                      source_claim_id AS "sourceClaimId", promotion_id AS "promotionId",
                      lifecycle, sensitivity, valid_from AS "validFrom", valid_until AS "validUntil",
                      created_at AS "createdAt"`,
@@ -1014,6 +1028,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
             promotion.rows[0].id,
             input.reviewId,
             input.sensitivity,
+            claimRow.namespaceId,
           ],
         );
         return inserted.rows[0];
@@ -1027,6 +1042,143 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     }
   });
 
+  app.post('/api/v1/memory/namespaces', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const input = createMemoryNamespaceSchema.parse({ ...req.body, ...context });
+      const namespace = await withTransaction(pool, async (client) => {
+        const targetWorkspaceId = input.targetWorkspaceId ?? null;
+        if (targetWorkspaceId) {
+          const workspace = await client.query(
+            `SELECT 1 FROM workspaces
+              WHERE id = $1 AND organization_id = $2 AND status = 'active'`,
+            [targetWorkspaceId, input.organizationId],
+          );
+          if (workspace.rowCount !== 1) throw new HttpError(404, 'workspace_not_found');
+        }
+        const inserted = await client.query(
+          `INSERT INTO memory_namespaces
+              (organization_id, workspace_id, storage_policy_id, key, name, namespace_kind)
+           SELECT $1, $2, sp.id, $3, $4, $5
+             FROM storage_policies sp WHERE sp.organization_id = $1
+           RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
+                     key, name, namespace_kind AS "namespaceKind", visibility, status,
+                     created_at AS "createdAt"`,
+          [input.organizationId, targetWorkspaceId, input.key, input.name, input.namespaceKind],
+        );
+        if (inserted.rowCount !== 1) throw new HttpError(409, 'storage_policy_required');
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, actor_id, event_type, subject_type, subject_id)
+           VALUES ($1, $2, 'memory.namespace_created', 'memory_namespace', $3)`,
+          [input.organizationId, input.actorId, inserted.rows[0].id],
+        );
+        return inserted.rows[0];
+      });
+      return res.status(201).json({ namespace, requestId: requestId(req) });
+    } catch (error) {
+      if (hasPgCode(error, '23505')) {
+        return next(new HttpError(409, 'memory_namespace_conflict'));
+      }
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/memory/grants', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const input = createMemoryGrantSchema.parse({ ...req.body, ...context });
+      const grant = await withTransaction(pool, async (client) => {
+        const namespace = await client.query(
+          `SELECT 1 FROM memory_namespaces
+            WHERE id = $1 AND organization_id = $2 AND status = 'active'`,
+          [input.namespaceId, input.organizationId],
+        );
+        if (namespace.rowCount !== 1) throw new HttpError(404, 'memory_namespace_not_found');
+        if (input.granteeOrganizationId === input.organizationId) {
+          throw new HttpError(409, 'cross_tenant_grant_required');
+        }
+        if (input.flowId) {
+          const flow = await client.query(
+            `SELECT 1 FROM flows WHERE id = $1 AND organization_id = $2`,
+            [input.flowId, input.granteeOrganizationId],
+          );
+          if (flow.rowCount !== 1) throw new HttpError(404, 'grantee_flow_not_found');
+        }
+        const inserted = await client.query(
+          `INSERT INTO memory_grants
+              (grantor_organization_id, grantee_organization_id, namespace_id,
+               purpose, flow_id, allowed_kinds, allowed_sensitivities, scope,
+               valid_until, created_by_actor_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id, grantor_organization_id AS "grantorOrganizationId",
+                     grantee_organization_id AS "granteeOrganizationId",
+                     namespace_id AS "namespaceId", purpose, flow_id AS "flowId",
+                     allowed_kinds AS "allowedKinds",
+                     allowed_sensitivities AS "allowedSensitivities", scope,
+                     valid_from AS "validFrom", valid_until AS "validUntil"`,
+          [
+            input.organizationId,
+            input.granteeOrganizationId,
+            input.namespaceId,
+            input.purpose,
+            input.flowId ?? null,
+            input.allowedKinds,
+            input.allowedSensitivities,
+            input.scope,
+            input.validUntil,
+            input.actorId,
+          ],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, actor_id, event_type, subject_type, subject_id,
+               metadata)
+           VALUES ($1, $2, 'memory.grant_created', 'memory_grant', $3, $4)`,
+          [
+            input.organizationId,
+            input.actorId,
+            inserted.rows[0].id,
+            { purpose: input.purpose, granteeOrganizationId: input.granteeOrganizationId },
+          ],
+        );
+        return inserted.rows[0];
+      });
+      return res.status(201).json({ grant, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/memory/grants/:grantId/revoke', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const revoked = await withTransaction(pool, async (client) => {
+        const updated = await client.query(
+          `UPDATE memory_grants
+              SET revoked_at = now(), revoked_by_actor_id = $1
+            WHERE id = $2 AND grantor_organization_id = $3 AND revoked_at IS NULL
+            RETURNING id, revoked_at AS "revokedAt"`,
+          [context.actorId, req.params.grantId, context.organizationId],
+        );
+        if (updated.rowCount !== 1) throw new HttpError(404, 'memory_grant_not_found');
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, actor_id, event_type, subject_type, subject_id)
+           VALUES ($1, $2, 'memory.grant_revoked', 'memory_grant', $3)`,
+          [context.organizationId, context.actorId, req.params.grantId],
+        );
+        return updated.rows[0];
+      });
+      return res.json({ grant: revoked, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get('/api/v1/memory/search', async (req, res, next) => {
     try {
       const context = await resolveTenantContext(req);
@@ -1034,46 +1186,20 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       const input = governedRetrievalSchema.parse({
         ...context,
         query: req.query.query,
+        purpose: req.query.purpose,
+        flowId: typeof req.query.flowId === 'string' ? req.query.flowId : undefined,
+        namespaceIds:
+          typeof req.query.namespaceIds === 'string'
+            ? req.query.namespaceIds.split(',').filter(Boolean)
+            : undefined,
         limit: Number(req.query.limit ?? 10),
         allowedKinds:
           typeof req.query.allowedKinds === 'string'
             ? req.query.allowedKinds.split(',').filter(Boolean)
             : undefined,
       });
-      const result = await pool.query(
-        `SELECT mi.id, mi.organization_id AS "organizationId", mi.workspace_id AS "workspaceId",
-                mi.kind, mi.title, mi.content,
-                mi.source_semantic_record_id AS "sourceSemanticRecordId",
-                mi.source_claim_id AS "sourceClaimId", mi.promotion_id AS "promotionId",
-                mi.lifecycle, mi.sensitivity, mi.valid_from AS "validFrom", mi.valid_until AS "validUntil",
-                mi.created_at AS "createdAt",
-                ts_rank(mi.search_vector, plainto_tsquery('simple', $3)) AS rank
-           FROM organizational_memory_items mi
-          WHERE mi.organization_id = $1
-            AND (mi.workspace_id = $2 OR mi.workspace_id IS NULL)
-            AND mi.lifecycle = 'approved'
-            AND mi.sensitivity IN ('public', 'organization', 'workspace')
-            AND ($4::text[] IS NULL OR mi.kind = ANY($4::text[]))
-            AND mi.search_vector @@ plainto_tsquery('simple', $3)
-          ORDER BY rank DESC, mi.created_at DESC
-          LIMIT $5`,
-        [
-          input.organizationId,
-          input.workspaceId,
-          input.query,
-          input.allowedKinds ?? null,
-          input.limit,
-        ],
-      );
-      res.json({
-        results: result.rows,
-        requestId: requestId(req),
-        governance: {
-          permissionFiltered: true,
-          scope: input.workspaceId,
-          unreviewedExcluded: true,
-        },
-      });
+      const result = await retrieveGovernedMemory(pool, input);
+      return res.json({ ...result, requestId: requestId(req) });
     } catch (error) {
       next(error);
     }

@@ -194,8 +194,32 @@ export const nativeExecutionResultSchema = z.object({
 
 export const governedRetrievalSchema = organizationContextSchema.extend({
   query: z.string().trim().min(1).max(1000),
+  purpose: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+  flowId: identifierSchema.optional(),
+  namespaceIds: z.array(identifierSchema).min(1).max(50).optional(),
   allowedKinds: z.array(memoryKindSchema).optional(),
   limit: z.number().int().min(1).max(50).default(10),
+});
+
+export const createMemoryNamespaceSchema = organizationContextSchema.extend({
+  key: slugSchema,
+  name: z.string().trim().min(1).max(200),
+  namespaceKind: z.enum(['raw', 'governed', 'knowledge_pack']),
+  targetWorkspaceId: identifierSchema.nullable().optional(),
+});
+
+export const createMemoryGrantSchema = organizationContextSchema.extend({
+  namespaceId: identifierSchema,
+  granteeOrganizationId: identifierSchema,
+  purpose: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+  flowId: identifierSchema.nullable().optional(),
+  allowedKinds: z.array(memoryKindSchema).min(1).max(20),
+  allowedSensitivities: z
+    .array(z.enum(['public', 'organization', 'workspace', 'restricted']))
+    .min(1)
+    .max(4),
+  scope: z.record(z.string(), z.unknown()).default({}),
+  validUntil: z.string().datetime(),
 });
 
 export type PublicRuntimeConfig = z.infer<typeof publicRuntimeConfigSchema>;
@@ -220,3 +244,5 @@ export type KnowledgePromotionInput = z.infer<typeof knowledgePromotionSchema>;
 export type NativeDiagnosisJob = z.infer<typeof nativeDiagnosisJobSchema>;
 export type NativeExecutionResult = z.infer<typeof nativeExecutionResultSchema>;
 export type GovernedRetrievalInput = z.infer<typeof governedRetrievalSchema>;
+export type CreateMemoryNamespaceInput = z.infer<typeof createMemoryNamespaceSchema>;
+export type CreateMemoryGrantInput = z.infer<typeof createMemoryGrantSchema>;

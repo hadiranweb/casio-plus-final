@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd /home/ubuntu/casio-plus
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$(dirname "$SCRIPT_DIR")"
 DB_NAME='casioplus_ts_core_bootstrap'
 TEST_DB_PASSWORD="$(openssl rand -hex 32)"
 SERVER_PID=''
@@ -109,7 +110,7 @@ test -n "$REVIEW_ID"
 curl -fsS "${AUTH_HEADER[@]}" -X POST http://127.0.0.1:${SMOKE_PORT}/api/v1/knowledge-claims/${CLAIM_ID}/promote \
   -H 'content-type: application/json' \
   -d "{\"reviewId\":\"${REVIEW_ID}\",\"targetKind\":\"verified_fact\",\"title\":\"Hiring process ownership priority\",\"content\":{\"finding\":\"Operations ownership is a priority\"},\"sensitivity\":\"workspace\",\"rationale\":\"Approved for workspace governed retrieval.\"}" > /tmp/casioplus-golden-memory.json
-curl -fsS "${AUTH_HEADER[@]}" "http://127.0.0.1:${SMOKE_PORT}/api/v1/memory/search?query=operations%20priority" > /tmp/casioplus-golden-search.json
+curl -fsS "${AUTH_HEADER[@]}" "http://127.0.0.1:${SMOKE_PORT}/api/v1/memory/search?query=operations%20priority\&purpose=golden-flow.validation" > /tmp/casioplus-golden-search.json
 
 printf '%s\n' 'GOLDEN_FLOW_STATUS=passed'
 printf '%s\n' "flow=${FLOW_ID} version=${VERSION_ID} run=${RUN_ID} artifact=${ARTIFACT_ID} record=${RECORD_ID} output_record=${OUTPUT_RECORD_ID} claim=${CLAIM_ID} review=${REVIEW_ID}"

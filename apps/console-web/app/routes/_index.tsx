@@ -232,7 +232,7 @@ function Console() {
     try {
       const response = await requestJson<{ results: MemoryItem[] }>(
         apiBase,
-        `/api/v1/memory/search?query=${encodeURIComponent(memoryQuery)}`,
+        `/api/v1/memory/search?query=${encodeURIComponent(memoryQuery)}&purpose=console.search`,
         token,
       );
       setData((current) => ({ ...current, memories: response.results }));
