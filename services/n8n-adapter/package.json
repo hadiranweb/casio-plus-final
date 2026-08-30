@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Signed orchestration boundary for n8n",
+  "description": "Authenticated orchestration boundary between Casioplus and n8n",
+  "main": "dist/server.js",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "vitest run"
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "vitest run src/*.test.ts"
   },
   "dependencies": {
     "zod": "^4.1.12"

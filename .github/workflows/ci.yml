@@ -62,6 +62,9 @@ jobs:
       - name: Topology validation
         run: pnpm validate:topology
 
+      - name: n8n workflow validation
+        run: pnpm validate:n8n
+
       - name: Repository security validation
         run: pnpm validate:security
 
@@ -76,6 +79,13 @@ jobs:
       - name: Build deployment units
         run: pnpm build
 
+      - name: Validate n8n workflow import
+        run: |
+          docker run --rm \
+            --volume "$PWD/runtime/n8n/workflows:/workflows:ro" \
+            n8nio/n8n:2.36.8 \
+            import:workflow --input=/workflows/casioplus-runtime-execution.json
+
       - name: Remix SSR smoke
         run: pnpm smoke:remix
 
@@ -84,6 +94,7 @@ jobs:
           docker build --file deployment/Dockerfile.core --tag casioplus-core-ci .
           docker build --file deployment/Dockerfile.worker --tag casioplus-worker-ci .
           docker build --file deployment/Dockerfile.dispatcher --tag casioplus-dispatcher-ci .
+          docker build --file deployment/Dockerfile.n8n-adapter --tag casioplus-n8n-adapter-ci .
           docker build --file deployment/Dockerfile.console --tag casioplus-console-ci .
           docker build --file deployment/Dockerfile.forge --tag casioplus-forge-ci .
 

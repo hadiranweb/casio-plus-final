@@ -4,10 +4,21 @@ import { z } from 'zod';
 const configurationSchema = z.object({
   coreApiUrl: z.string().url(),
   dispatcherSecret: z.string().min(32),
+  adapterSecret: z.string().min(32),
   n8nAdapterUrl: z.string().url().optional(),
   openWebuiAdapterUrl: z.string().url().optional(),
   openclawAdapterUrl: z.string().url().optional(),
   pollIntervalMs: z.number().int().min(100).max(60_000).default(1_000),
+});
+
+const n8nAdapterResultSchema = z.object({
+  status: z.enum(['succeeded', 'failed']),
+  executionId: z.string().trim().min(1).max(200).optional(),
+  output: z.record(z.string(), z.unknown()).optional(),
+  errorCode: z
+    .string()
+    .regex(/^[a-z][a-z0-9_.-]{1,127}$/)
+    .optional(),
 });
 
 const outboxItemSchema = z.object({
@@ -28,6 +39,7 @@ type Configuration = z.infer<typeof configurationSchema>;
 const configuration = configurationSchema.parse({
   coreApiUrl: process.env.CORE_API_URL,
   dispatcherSecret: process.env.DISPATCHER_SHARED_SECRET,
+  adapterSecret: process.env.ADAPTER_SHARED_SECRET,
   n8nAdapterUrl: process.env.N8N_ADAPTER_URL,
   openWebuiAdapterUrl: process.env.OPEN_WEBUI_ADAPTER_URL,
   openclawAdapterUrl: process.env.OPENCLAW_ADAPTER_URL,
@@ -71,7 +83,7 @@ async function acknowledge(
   config: Configuration,
   item: OutboxItem,
   result:
-    | { status: 'dispatched' }
+    | { status: 'dispatched'; adapterResult?: z.infer<typeof n8nAdapterResultSchema> }
     | { status: 'retry'; errorCode: string; retryAfterSeconds: number }
     | { status: 'dead_letter'; errorCode: string },
 ): Promise<void> {
@@ -100,6 +112,7 @@ async function dispatch(config: Configuration, item: OutboxItem): Promise<void> 
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'x-casioplus-adapter-secret': config.adapterSecret,
         'x-casioplus-idempotency-key': item.idempotencyKey,
         'x-casioplus-organization-id': item.organizationId,
         'x-casioplus-workspace-id': item.workspaceId,
@@ -122,6 +135,21 @@ async function dispatch(config: Configuration, item: OutboxItem): Promise<void> 
             }
           : { status: 'dead_letter', errorCode: `adapter_http_${response.status}` },
       );
+      return;
+    }
+    if (item.destination === 'n8n') {
+      let adapterResult: z.infer<typeof n8nAdapterResultSchema>;
+      try {
+        adapterResult = n8nAdapterResultSchema.parse(await response.json());
+      } catch {
+        await acknowledge(config, item, {
+          status: item.attempts >= 8 ? 'dead_letter' : 'retry',
+          errorCode: 'adapter_invalid_response',
+          retryAfterSeconds: retryDelaySeconds(item.attempts),
+        });
+        return;
+      }
+      await acknowledge(config, item, { status: 'dispatched', adapterResult });
       return;
     }
     await acknowledge(config, item, { status: 'dispatched' });

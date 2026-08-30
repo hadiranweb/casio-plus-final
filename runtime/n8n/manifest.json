@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "casioplus.n8n.manifest.v1",
+  "n8nVersion": "2.36.8",
+  "workflows": [
+    {
+      "path": "runtime/n8n/workflows/casioplus-runtime-execution.json",
+      "name": "Casioplus Runtime Execution",
+      "webhookPath": "casioplus-runtime-execution",
+      "operationPrefixes": ["n8n."],
+      "activeInRepository": false,
+      "requiredCredential": {
+        "type": "httpHeaderAuth",
+        "header": "Authorization",
+        "secretEnvironmentVariable": "N8N_WEBHOOK_TOKEN"
+      }
+    }
+  ],
+  "activationGates": [
+    "repository-validation",
+    "n8n-import-validation",
+    "credential-binding",
+    "connection-review",
+    "safe-test-execution",
+    "first-execution-monitoring"
+  ],
+  "forbiddenNodeFamilies": [
+    "n8n-nodes-base.postgres",
+    "n8n-nodes-base.mysql",
+    "n8n-nodes-base.mongoDb",
+    "n8n-nodes-base.sqlite"
+  ]
+}

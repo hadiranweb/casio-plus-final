@@ -50,6 +50,7 @@ jobs:
           pnpm check
           pnpm test
           pnpm validate:topology
+          pnpm validate:n8n
           pnpm validate:security
           pnpm security:audit
           pnpm build
@@ -77,6 +78,10 @@ jobs:
             app_secret: LIARA_DISPATCHER_APP
             dockerfile: deployment/Dockerfile.dispatcher
             port: '8080'
+          - unit: n8n-adapter
+            app_secret: LIARA_N8N_ADAPTER_APP
+            dockerfile: deployment/Dockerfile.n8n-adapter
+            port: '8082'
           - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console
@@ -128,6 +133,10 @@ jobs:
             app_secret: LIARA_DISPATCHER_APP
             dockerfile: deployment/Dockerfile.dispatcher
             port: '8080'
+          - unit: n8n-adapter
+            app_secret: LIARA_N8N_ADAPTER_APP
+            dockerfile: deployment/Dockerfile.n8n-adapter
+            port: '8082'
           - unit: console
             app_secret: LIARA_CONSOLE_WEB_APP
             dockerfile: deployment/Dockerfile.console

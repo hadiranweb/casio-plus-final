@@ -23,12 +23,14 @@ const requiredDirectories = [
   'apps/forge-web/app/routes',
   'services/core-api',
   'services/integration-dispatcher',
+  'services/n8n-adapter',
   'services/native-diagnosis-worker',
   'packages/contracts',
   'packages/domain',
   'packages/knowledge-model',
   'packages/ui',
   'migrations',
+  'runtime/n8n/workflows',
   'deployment',
   'docs',
 ];
@@ -203,6 +205,21 @@ for (const dockerfile of ['deployment/Dockerfile.console', 'deployment/Dockerfil
   }
 }
 
+const n8nAdapterDockerfile = await readFile(
+  resolve(root, 'deployment/Dockerfile.n8n-adapter'),
+  'utf8',
+);
+for (const requiredFragment of [
+  '@casioplus/n8n-adapter build',
+  '@casioplus/n8n-adapter deploy',
+  'USER node',
+  'dist/server.js',
+]) {
+  if (!n8nAdapterDockerfile.includes(requiredFragment)) {
+    throw new Error(`n8n adapter Docker contract missing: ${requiredFragment}`);
+  }
+}
+
 for (const path of [
   'apps/console-web/app/root.tsx',
   'apps/console-web/app/routes/_index.tsx',
@@ -226,6 +243,7 @@ console.log(
     checkedWorkspacePackages: manifests.size,
     checkedRemixSurfaces: remixSurfaceNames,
     checkedRemixDockerfiles: ['deployment/Dockerfile.console', 'deployment/Dockerfile.forge'],
+    checkedRuntimeDockerfiles: ['deployment/Dockerfile.n8n-adapter'],
     forbiddenStandaloneUiPaths: [
       'apps/console-web/src',
       'apps/console-web/index.html',

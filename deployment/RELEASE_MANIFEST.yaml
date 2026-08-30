@@ -46,7 +46,21 @@ units:
     trigger: core-signed-request
   n8n-adapter:
     path: services/n8n-adapter
+    status: authenticated-runtime-boundary
     public: false
+    port: 8082
+    health: /healthz
+    canonical_store_access: false
+    dockerfile: deployment/Dockerfile.n8n-adapter
+    docker_build_validation: ci
+  n8n-runtime:
+    path: runtime/n8n
+    status: workflow-template-validated
+    image: n8nio/n8n:2.36.8
+    role: orchestrator-only
+    public: false
+    canonical_store_access: false
+    persistence: runtime-internal-only
   open-webui-adapter:
     path: services/open-webui-adapter
     public: false
@@ -70,6 +84,8 @@ promotion:
     - migration-on-empty-database
     - core-health
     - tenant-isolation
+    - n8n-workflow-validation
+    - n8n-adapter-authentication
     - golden-flow-e2e
     - artifact-delivery
     - rollback-pointer

@@ -20,6 +20,16 @@ export class IntegrationGatewayError extends Error {
   }
 }
 
+const adapterResultSchema = z.object({
+  status: z.enum(['succeeded', 'failed']),
+  executionId: z.string().trim().min(1).max(200).optional(),
+  output: z.record(z.string(), z.unknown()).optional(),
+  errorCode: z
+    .string()
+    .regex(/^[a-z][a-z0-9_.-]{1,127}$/)
+    .optional(),
+});
+
 const outboxResultSchema = z.object({
   status: z.enum(['dispatched', 'retry', 'dead_letter']),
   errorCode: z
@@ -27,6 +37,7 @@ const outboxResultSchema = z.object({
     .regex(/^[a-z][a-z0-9_.-]{1,127}$/)
     .optional(),
   retryAfterSeconds: z.number().int().min(1).max(3600).optional(),
+  adapterResult: adapterResultSchema.optional(),
 });
 
 function requiredHeader(request: Request, name: string): string {
@@ -272,10 +283,12 @@ export function mountIntegrationGateway(
       const input = outboxResultSchema.parse(request.body);
       const updated = await withTransaction(pool, async (client) => {
         const outbox = await client.query<{
-          integrationRequestId: string;
+          integrationRequestId: string | null;
+          processRunId: string | null;
           attempts: number;
         }>(
-          `SELECT integration_request_id AS "integrationRequestId", attempts
+          `SELECT integration_request_id AS "integrationRequestId",
+                  process_run_id AS "processRunId", attempts
              FROM integration_outbox WHERE id = $1 AND status = 'in_progress' FOR UPDATE`,
           [request.params.outboxId],
         );
@@ -290,25 +303,79 @@ export function mountIntegrationGateway(
                     THEN now() + ($3::text || ' seconds')::interval
                     ELSE next_attempt_at END,
                   dispatched_at = CASE WHEN $1 = 'dispatched' THEN now() ELSE dispatched_at END,
+                  adapter_result = $4,
                   locked_at = NULL, updated_at = now()
-            WHERE id = $4`,
+            WHERE id = $5`,
           [
             nextStatus,
             input.errorCode ?? null,
             input.retryAfterSeconds ?? 30,
+            input.adapterResult ?? null,
             request.params.outboxId,
           ],
         );
-        await client.query(
-          `UPDATE integration_requests
-              SET status = CASE
-                WHEN $1 = 'dispatched' THEN 'dispatched'
-                WHEN $1 = 'dead_letter' THEN 'failed'
-                ELSE status END,
-                  completed_at = CASE WHEN $1 IN ('dispatched', 'dead_letter') THEN now() ELSE completed_at END
-            WHERE id = $2`,
-          [nextStatus, row.integrationRequestId],
-        );
+        if (row.integrationRequestId) {
+          await client.query(
+            `UPDATE integration_requests
+                SET status = CASE
+                  WHEN $1 = 'dispatched' THEN 'dispatched'
+                  WHEN $1 = 'dead_letter' THEN 'failed'
+                  ELSE status END,
+                    completed_at = CASE WHEN $1 IN ('dispatched', 'dead_letter') THEN now() ELSE completed_at END
+              WHERE id = $2`,
+            [nextStatus, row.integrationRequestId],
+          );
+        }
+        if (row.processRunId && nextStatus !== 'retry') {
+          const processRun = await client.query<{
+            organizationId: string;
+            workspaceId: string;
+            workItemId: string;
+            actorId: string;
+          }>(
+            `SELECT organization_id AS "organizationId", workspace_id AS "workspaceId",
+                    work_item_id AS "workItemId", created_by_actor_id AS "actorId"
+               FROM flow_runs WHERE id = $1 FOR UPDATE`,
+            [row.processRunId],
+          );
+          const run = processRun.rows[0];
+          if (!run) throw new IntegrationGatewayError(404, 'process_run_not_found');
+          const adapterSucceeded =
+            nextStatus === 'dispatched' && input.adapterResult?.status === 'succeeded';
+          const runStatus = adapterSucceeded ? 'succeeded' : 'failed';
+          const errorCode = adapterSucceeded
+            ? null
+            : (input.adapterResult?.errorCode ?? input.errorCode ?? 'n8n_dispatch_failed');
+          await client.query(
+            `UPDATE flow_runs
+                SET status = $1, output = $2, error_code = $3, completed_at = now()
+              WHERE id = $4 AND status NOT IN ('succeeded', 'failed', 'cancelled')`,
+            [runStatus, input.adapterResult?.output ?? null, errorCode, row.processRunId],
+          );
+          await client.query(
+            `INSERT INTO runtime_events
+                (organization_id, workspace_id, process_run_id, actor_id,
+                 event_type, payload, idempotency_key)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
+            [
+              run.organizationId,
+              run.workspaceId,
+              row.processRunId,
+              run.actorId,
+              adapterSucceeded ? 'n8n.execution.succeeded' : 'n8n.execution.failed',
+              input.adapterResult ?? { errorCode },
+              `n8n-result:${request.params.outboxId}`,
+            ],
+          );
+          if (adapterSucceeded) {
+            await client.query(
+              `UPDATE work_items SET status = 'completed', updated_at = now()
+                WHERE id = $1 AND organization_id = $2 AND workspace_id = $3`,
+              [run.workItemId, run.organizationId, run.workspaceId],
+            );
+          }
+        }
         return { status: nextStatus };
       });
       response.json(updated);

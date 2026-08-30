@@ -1,0 +1,148 @@
+{
+  "name": "Casioplus Runtime Execution",
+  "active": false,
+  "nodes": [
+    {
+      "id": "25fc820a-71d2-49de-a29b-d219ae15c7bd",
+      "name": "Casioplus Runtime Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-760, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "casioplus-runtime-execution",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "a138832c-e7a6-4bb7-a976-ec0d99c4b70f"
+    },
+    {
+      "id": "a7e7d6f3-8ba5-4fa5-946f-ad3691f32b43",
+      "name": "Validate Dispatch Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-520, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const item = $input.first().json;\nconst body = item.body;\nconst idempotencyKey = item.headers?.['x-casioplus-idempotency-key'];\nif (!body || body.schemaVersion !== 'casioplus.n8n.dispatch.v1') throw new Error('invalid_schema_version');\nif (!body.context?.organizationId || !body.context?.workspaceId) throw new Error('invalid_context');\nif (!body.operation || !body.payload || !idempotencyKey) throw new Error('invalid_dispatch_envelope');\nreturn [{ json: { ...body, idempotencyKey } }];"
+      }
+    },
+    {
+      "id": "425ffb56-f937-4350-a284-f8e3d147e6d0",
+      "name": "Is Flow Execution",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-280, 0],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "97526f5b-bd2a-4218-a668-ed856921c5bb",
+              "leftValue": "={{ $json.operation }}",
+              "rightValue": "n8n.flow.execute",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e42ece6d-377e-4c37-86b1-d29b547083ea",
+      "name": "Execute Governed Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-20, -100],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const dispatch = $input.first().json;\nconst definition = dispatch.payload.definition ?? {};\nconst steps = Array.isArray(definition.steps) ? definition.steps : [];\nreturn [{ json: { status: 'succeeded', executionId: $execution.id, output: { processRunId: dispatch.payload.processRunId, runtime: 'n8n', completedSteps: steps.length, input: dispatch.payload.input ?? {} } } }];"
+      }
+    },
+    {
+      "id": "c1b973d8-34cd-435f-bdf8-9abc84839e7d",
+      "name": "Build Unsupported Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-20, 100],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const dispatch = $input.first().json;\nreturn [{ json: { status: 'failed', executionId: $execution.id, errorCode: 'unsupported_n8n_operation', output: { operation: dispatch.operation } } }];"
+      }
+    },
+    {
+      "id": "e68be995-333d-4370-ae31-a66b8841d633",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [240, -100],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "72fe4d93-bd72-4702-97fd-bf16475ed25c",
+      "name": "Respond Failure",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [240, 100],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Casioplus Runtime Webhook": {
+      "main": [[{ "node": "Validate Dispatch Envelope", "type": "main", "index": 0 }]]
+    },
+    "Validate Dispatch Envelope": {
+      "main": [[{ "node": "Is Flow Execution", "type": "main", "index": 0 }]]
+    },
+    "Is Flow Execution": {
+      "main": [
+        [{ "node": "Execute Governed Plan", "type": "main", "index": 0 }],
+        [{ "node": "Build Unsupported Result", "type": "main", "index": 0 }]
+      ]
+    },
+    "Execute Governed Plan": {
+      "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]]
+    },
+    "Build Unsupported Result": {
+      "main": [[{ "node": "Respond Failure", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "executionTimeout": 120
+  },
+  "meta": {
+    "casioplusSchemaVersion": "casioplus.n8n.workflow.v1",
+    "requiredCredentialType": "httpHeaderAuth",
+    "requiredCredentialHeader": "Authorization",
+    "activationRequiresCredentialBinding": true
+  },
+  "tags": []
+}

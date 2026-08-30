@@ -612,11 +612,12 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         flowVersionId: string;
         status: string;
         input: Record<string, unknown>;
+        definition: Record<string, unknown>;
         runtimeBinding: string;
       }>(
         `SELECT fr.id, fr.organization_id AS "organizationId", fr.workspace_id AS "workspaceId",
                 fr.work_item_id AS "workItemId", fr.flow_id AS "flowId",
-                fr.flow_version_id AS "flowVersionId", fr.status, fr.input,
+                fr.flow_version_id AS "flowVersionId", fr.status, fr.input, fv.definition,
                 fv.runtime_binding AS "runtimeBinding"
            FROM flow_runs fr
            JOIN flow_versions fv ON fv.id = fr.flow_version_id
@@ -629,8 +630,64 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       if (runRow.status !== 'running' && runRow.status !== 'queued') {
         throw new HttpError(409, 'process_run_not_executable');
       }
+      if (runRow.runtimeBinding === 'n8n') {
+        const dispatch = await withTransaction(pool, async (client) => {
+          const idempotencyKey = `process-run:${runRow.id}:n8n`;
+          const queued = await client.query(
+            `INSERT INTO integration_outbox
+                (integration_request_id, process_run_id, organization_id, workspace_id,
+                 destination, operation, payload, idempotency_key, timeout_ms)
+             VALUES (NULL, $1, $2, $3, 'n8n', 'n8n.flow.execute', $4, $5, $6)
+             ON CONFLICT (destination, idempotency_key) DO UPDATE
+               SET updated_at = integration_outbox.updated_at
+             RETURNING id, status, attempts, created_at AS "createdAt"`,
+            [
+              runRow.id,
+              runRow.organizationId,
+              runRow.workspaceId,
+              {
+                processRunId: runRow.id,
+                workItemId: runRow.workItemId,
+                flowId: runRow.flowId,
+                flowVersionId: runRow.flowVersionId,
+                actorId: context.actorId,
+                input: runRow.input,
+                definition: runRow.definition,
+              },
+              idempotencyKey,
+              Number(process.env.N8N_RUNTIME_TIMEOUT_MS ?? 60_000),
+            ],
+          );
+          await client.query(
+            `INSERT INTO runtime_events
+                (organization_id, workspace_id, process_run_id, actor_id, event_type, payload, idempotency_key)
+             VALUES ($1, $2, $3, $4, 'n8n.dispatch.queued', $5, $6)
+             ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
+            [
+              runRow.organizationId,
+              runRow.workspaceId,
+              runRow.id,
+              context.actorId,
+              { outboxId: queued.rows[0]!.id },
+              `${idempotencyKey}:queued`,
+            ],
+          );
+          await client.query(
+            `UPDATE flow_runs SET status = 'running'
+              WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+                AND status IN ('queued', 'running')`,
+            [runRow.id, runRow.organizationId, runRow.workspaceId],
+          );
+          return queued.rows[0];
+        });
+        return res.status(202).json({
+          run: { ...runRow, status: 'running' },
+          dispatch,
+          requestId: requestId(req),
+        });
+      }
       if (runRow.runtimeBinding !== 'native') {
-        throw new HttpError(409, 'native_runtime_binding_required');
+        throw new HttpError(409, 'runtime_binding_not_executable');
       }
       const workerUrl = process.env.NATIVE_WORKER_URL;
       if (!workerUrl) {
