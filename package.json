@@ -19,7 +19,7 @@
     "build:forge": "pnpm --filter @casioplus/forge-web build",
     "check": "tsc --noEmit",
     "check:worker": "pnpm --filter @casioplus/native-diagnosis-worker check",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
     "db:migrate": "tsx services/core-api/src/db/migrate.ts",
     "smoke:golden": "bash scripts/smoke-golden-flow.sh",
