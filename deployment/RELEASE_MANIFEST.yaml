@@ -1,18 +1,18 @@
 version: 1
 product: casioplus
 architecture: typescript-core-postgres-mvp
-readiness: core-vertical-slice-not-public-ready
+readiness: production-deployment-candidate-not-yet-deployed
 units:
   core-api:
     path: services/core-api
-    status: vertical-slice
+    status: production-candidate
     public: false
     port: 8080
     health: /healthz
     canonical_store: postgres
   console-web:
     path: apps/console-web
-    status: mvp-surface
+    status: production-candidate
     public: false
     host: console.casioplus.com
     framework: remix
@@ -23,7 +23,7 @@ units:
     docker_build_validation: ci
   forge-web:
     path: apps/forge-web
-    status: mvp-surface
+    status: production-candidate
     public: false
     host: forge.casioplus.com
     framework: remix
@@ -42,8 +42,12 @@ units:
     docker_build_validation: ci
   native-diagnosis-worker:
     path: services/native-diagnosis-worker
+    status: production-candidate
     public: false
     trigger: core-signed-request
+    canonical_store_access: false
+    dockerfile: deployment/Dockerfile.worker
+    docker_build_validation: ci
   n8n-adapter:
     path: services/n8n-adapter
     status: authenticated-runtime-boundary
@@ -118,6 +122,9 @@ promotion:
     - openclaw-approval-and-target-resolution
     - runtime-usage-attribution
     - golden-flow-e2e
+    - accessibility-six-state
+    - performance-budgets
+    - independent-design-audit
     - artifact-delivery
     - rollback-pointer
 constraints:

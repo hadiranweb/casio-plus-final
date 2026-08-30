@@ -1,0 +1,171 @@
+name: Prepare Casioplus Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Intended promotion target after external approval
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+      candidate_sha:
+        description: Optional commit SHA; defaults to the selected branch SHA
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: validate-and-package-${{ inputs.target }}-candidate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: casioplus
+          POSTGRES_PASSWORD: casioplus
+          POSTGRES_DB: casioplus_release_candidate
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U casioplus -d casioplus_release_candidate"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha || github.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate source and dependencies
+        run: |
+          pnpm format:check
+          pnpm check
+          pnpm validate:topology
+          pnpm validate:n8n
+          pnpm validate:security
+          pnpm security:audit
+
+      - name: Run unit and PostgreSQL integration tests
+        env:
+          DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_release_candidate
+        run: pnpm test
+
+      - name: Apply migrations to an empty PostgreSQL database
+        env:
+          DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_release_candidate
+        run: pnpm db:migrate
+
+      - name: Build deployment units
+        run: pnpm build
+
+      - name: Validate performance budgets
+        run: pnpm validate:performance
+
+      - name: Run Golden Flow end-to-end
+        env:
+          DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_release_candidate
+        run: pnpm smoke:golden
+
+      - name: Validate accessibility states
+        env:
+          DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_release_candidate
+        run: pnpm validate:accessibility
+
+      - name: Validate n8n workflow import
+        run: |
+          docker run --rm \
+            --volume "$PWD/runtime/n8n/workflows:/workflows:ro" \
+            n8nio/n8n:2.36.8 \
+            import:workflow --input=/workflows/casioplus-runtime-execution.json
+
+      - name: Validate Remix SSR
+        run: pnpm smoke:remix
+
+      - name: Validate runtime Compose contracts
+        env:
+          ADAPTER_SHARED_SECRET: release-candidate-adapter-secret-at-least-32-characters
+          OPEN_WEBUI_SECRET_KEY: release-candidate-open-webui-secret-at-least-32-characters
+          OPEN_WEBUI_API_KEY: release-candidate-open-webui-key-at-least-32-characters
+          OPEN_WEBUI_ALLOWED_MODELS_JSON: '["casioplus-general"]'
+          OPENCLAW_GATEWAY_TOKEN: release-candidate-openclaw-token-at-least-32-characters
+          OPENCLAW_EXECUTOR_TARGETS_JSON: '{"operations.primary":{"channel":"slack","target":"channel:C123"}}'
+        run: |
+          docker compose -f runtime/open-webui/docker-compose.yml config --quiet
+          docker compose -f runtime/openclaw/docker-compose.yml config --quiet
+
+      - name: Build production images
+        run: |
+          docker build --file deployment/Dockerfile.core --tag casioplus-core-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.worker --tag casioplus-worker-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.dispatcher --tag casioplus-dispatcher-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.n8n-adapter --tag casioplus-n8n-adapter-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.open-webui-adapter --tag casioplus-open-webui-adapter-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.openclaw-adapter --tag casioplus-openclaw-adapter-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.console --tag casioplus-console-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.forge --tag casioplus-forge-candidate:${GITHUB_SHA} .
+
+      - name: Create release evidence
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const evidence = {
+            schemaVersion: 'casioplus.release-evidence.v1',
+            target: process.env.TARGET,
+            commitSha: process.env.GITHUB_SHA,
+            repository: process.env.GITHUB_REPOSITORY,
+            workflowRunId: process.env.GITHUB_RUN_ID,
+            generatedAt: new Date().toISOString(),
+            deploymentPerformed: false,
+            gates: {
+              format: 'passed',
+              typecheck: 'passed',
+              tests: 'passed',
+              topology: 'passed',
+              security: 'passed',
+              dependencyPolicy: 'passed',
+              migrations: 'passed-on-empty-database',
+              build: 'passed',
+              performance: 'passed',
+              goldenFlow: 'passed',
+              accessibility: 'passed',
+              n8nImport: 'passed',
+              remixSsr: 'passed',
+              runtimeCompose: 'passed',
+              productionImages: 'passed'
+            }
+          };
+          writeFileSync('release-evidence.json', `${JSON.stringify(evidence, null, 2)}\n`);
+          NODE
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: casioplus-${{ inputs.target }}-candidate-${{ github.sha }}
+          path: release-evidence.json
+          if-no-files-found: error
+          retention-days: 30
