@@ -50,7 +50,7 @@ export async function retrieveGovernedMemory(
           AND (
             (
               mn.organization_id = $1
-              AND (mn.workspace_id IS NULL OR mn.workspace_id = $2)
+              AND (mn.workspace_id IS NULL OR mn.workspace_id = $2::uuid)
             )
             OR access_grant.id IS NOT NULL
           )`,
