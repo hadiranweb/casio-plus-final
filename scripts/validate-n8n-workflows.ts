@@ -23,6 +23,7 @@ const connectionSchema = z.object({
 });
 
 const workflowSchema = z.object({
+  id: z.string(),
   name: z.string().min(1),
   active: z.boolean(),
   nodes: z.array(nodeSchema).min(2),
@@ -83,6 +84,7 @@ async function main() {
       JSON.parse(await readFile(resolve(root, entry.path), 'utf8')),
     );
     assert(workflow.name === entry.name, `n8n_workflow_name_mismatch:${entry.path}`);
+    assert(uuidV4.test(workflow.id), `n8n_workflow_id_must_be_uuid_v4:${workflow.name}`);
     assert(!workflow.active, `n8n_repository_workflow_must_be_inactive:${workflow.name}`);
     assert(Object.keys(workflow.pinData).length === 0, `n8n_pin_data_forbidden:${workflow.name}`);
 
