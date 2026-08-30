@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyMigrations, createPool } from './db.js';
 import { createApp, headerTenantContext } from './app.js';
+import { createS3ArtifactObjectStore } from './artifact-storage.js';
 import { persistentTenantContext } from './auth.js';
 import { loadMigrations } from './migrations.js';
 
@@ -12,6 +13,19 @@ const databaseUrl = process.env.DATABASE_URL;
 const sessionSecret = process.env.SESSION_SECRET;
 const allowDevTenantHeaders = process.env.ALLOW_DEV_TENANT_HEADERS === 'true';
 const dispatcherSecret = process.env.DISPATCHER_SHARED_SECRET;
+const artifactBucket = process.env.ARTIFACT_S3_BUCKET;
+const artifactAccessKeyId = process.env.ARTIFACT_S3_ACCESS_KEY_ID;
+const artifactSecretAccessKey = process.env.ARTIFACT_S3_SECRET_ACCESS_KEY;
+const artifactObjectStore =
+  artifactBucket && artifactAccessKeyId && artifactSecretAccessKey
+    ? createS3ArtifactObjectStore({
+        endpoint: process.env.ARTIFACT_S3_ENDPOINT,
+        region: process.env.ARTIFACT_S3_REGION ?? 'us-east-1',
+        bucket: artifactBucket,
+        accessKeyId: artifactAccessKeyId,
+        secretAccessKey: artifactSecretAccessKey,
+      })
+    : undefined;
 let integrationSecrets: Record<string, string> = {};
 try {
   integrationSecrets = JSON.parse(process.env.INTEGRATION_HMAC_SECRETS_JSON ?? '{}') as Record<
@@ -43,6 +57,7 @@ const app = createApp(pool, {
     : persistentTenantContext(pool, sessionSecret ?? ''),
   integrationSecrets,
   dispatcherSecret,
+  artifactObjectStore,
 });
 
 async function start(): Promise<void> {

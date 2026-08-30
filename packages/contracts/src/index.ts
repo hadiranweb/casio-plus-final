@@ -124,9 +124,67 @@ export const runtimeEventSchema = organizationContextSchema.extend({
 export const createArtifactSchema = organizationContextSchema.extend({
   processRunId: identifierSchema.nullable(),
   artifactType: z.enum(['json', 'html', 'pdf', 'text', 'binary']),
-  objectKey: z.string().trim().min(1).max(500),
   contentType: z.string().trim().min(1).max(200),
   checksum: z.string().trim().max(200).nullable().optional(),
+  sourceHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable()
+    .optional(),
+  sourceVersion: z.string().trim().min(1).max(200).nullable().optional(),
+  sizeBytes: z.number().int().min(0).max(1_073_741_824).nullable().optional(),
+  idempotencyKey: z.string().trim().min(16).max(200).optional(),
+});
+
+export const createArtifactUploadSchema = organizationContextSchema.extend({
+  processRunId: identifierSchema,
+  namespaceId: identifierSchema,
+  artifactType: z.enum(['json', 'html', 'pdf', 'text', 'binary']),
+  contentType: z.string().trim().min(1).max(200),
+  sizeBytes: z.number().int().min(1).max(1_073_741_824),
+  checksum: z.string().trim().min(16).max(200),
+  sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+  sourceVersion: z.string().trim().min(1).max(200),
+  idempotencyKey: z.string().trim().min(16).max(200),
+});
+
+export const completeArtifactUploadSchema = organizationContextSchema.extend({
+  artifactId: identifierSchema,
+  observedSizeBytes: z.number().int().min(1).max(1_073_741_824),
+  observedChecksum: z.string().trim().min(16).max(200),
+});
+
+export const createPricingAssumptionSchema = organizationContextSchema.extend({
+  key: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+  version: z.number().int().positive(),
+  status: z.enum(['planning', 'active']),
+  assumptions: z.record(z.string(), z.unknown()),
+  effectiveFrom: z.string().datetime(),
+  effectiveUntil: z.string().datetime().nullable().optional(),
+});
+
+export const recordUsageEventSchema = organizationContextSchema.extend({
+  externalAppId: identifierSchema.nullable().optional(),
+  externalTenantId: identifierSchema.nullable().optional(),
+  flowId: identifierSchema,
+  flowVersionId: identifierSchema,
+  processRunId: identifierSchema,
+  namespaceId: identifierSchema,
+  operation: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+  runtime: z.enum(['native', 'n8n', 'open-webui', 'openclaw']),
+  model: z.string().trim().min(1).max(200).nullable().optional(),
+  inputTokens: z.number().int().min(0),
+  outputTokens: z.number().int().min(0),
+  inputBytes: z.number().int().min(0),
+  outputBytes: z.number().int().min(0),
+  latencyMs: z.number().int().min(0),
+  unitCost: z.string().regex(/^\d+(\.\d{1,8})?$/),
+  allocatedSharedCost: z.string().regex(/^\d+(\.\d{1,8})?$/),
+  billableAmount: z.string().regex(/^\d+(\.\d{1,8})?$/),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  payer: z.enum(['casioplus', 'customer', 'external_product', 'shared']),
+  pricingVersionId: identifierSchema,
+  idempotencyKey: z.string().trim().min(16).max(200),
 });
 
 export const createSemanticRecordSchema = organizationContextSchema.extend({
@@ -236,6 +294,10 @@ export type CreateFlowVersionInput = z.infer<typeof createFlowVersionSchema>;
 export type CreateProcessRunInput = z.infer<typeof createProcessRunSchema>;
 export type RuntimeEventInput = z.infer<typeof runtimeEventSchema>;
 export type CreateArtifactInput = z.infer<typeof createArtifactSchema>;
+export type CreateArtifactUploadInput = z.infer<typeof createArtifactUploadSchema>;
+export type CompleteArtifactUploadInput = z.infer<typeof completeArtifactUploadSchema>;
+export type CreatePricingAssumptionInput = z.infer<typeof createPricingAssumptionSchema>;
+export type RecordUsageEventInput = z.infer<typeof recordUsageEventSchema>;
 export type CreateSemanticRecordInput = z.infer<typeof createSemanticRecordSchema>;
 export type CreateKnowledgeClaimInput = z.infer<typeof createKnowledgeClaimSchema>;
 export type CreateCommitInput = z.infer<typeof createCommitSchema>;

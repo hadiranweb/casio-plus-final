@@ -1,14 +1,17 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Pool } from 'pg';
 import {
+  completeArtifactUploadSchema,
   createArtifactSchema,
+  createArtifactUploadSchema,
   createFlowSchema,
   createFlowVersionSchema,
   createKnowledgeClaimSchema,
   createMemoryGrantSchema,
   createMemoryNamespaceSchema,
+  createPricingAssumptionSchema,
   createProcessRunSchema,
   createSemanticRecordSchema,
   createWorkItemSchema,
@@ -16,9 +19,11 @@ import {
   knowledgePromotionSchema,
   nativeExecutionResultSchema,
   organizationContextSchema,
+  recordUsageEventSchema,
   reviewDecisionSchema,
   runtimeEventSchema,
 } from '../../../packages/contracts/src/index.js';
+import type { ArtifactObjectStore } from './artifact-storage.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
 import { retrieveGovernedMemory } from './memory-broker.js';
@@ -65,6 +70,14 @@ export function headerTenantContext(req: Request): TenantContext {
     workspaceId: req.header('x-casioplus-workspace-id'),
     actorId: req.header('x-casioplus-actor-id'),
   });
+}
+
+function internalSecretMatches(req: Request, expected: string | undefined): boolean {
+  const provided = req.header('x-casioplus-dispatcher-secret')?.trim();
+  if (!provided || !expected || expected.length < 32) return false;
+  const left = createHash('sha256').update(provided).digest();
+  const right = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(left, right);
 }
 
 function requestId(req: Request): string {
@@ -125,6 +138,7 @@ export interface AppOptions {
   sessionSecret?: string;
   integrationSecrets?: IntegrationSecretMap;
   dispatcherSecret?: string;
+  artifactObjectStore?: ArtifactObjectStore;
 }
 
 export function createApp(pool: Pool, options: AppOptions = {}) {
@@ -687,6 +701,11 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       const context = await resolveTenantContext(req);
       await requireMembership(pool, context, participantRoles, enforceMembership);
       const input = createArtifactSchema.parse({ ...req.body, ...context });
+      const objectKey = `${input.organizationId}/${input.workspaceId}/artifacts/${createHash(
+        'sha256',
+      )
+        .update(input.idempotencyKey ?? randomUUID())
+        .digest('hex')}`;
       const artifact = await withTransaction(pool, async (client) => {
         if (input.processRunId) {
           const run = await client.query(
@@ -700,22 +719,37 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         }
         const inserted = await client.query(
           `INSERT INTO artifacts
-              (organization_id, workspace_id, process_run_id, artifact_type,
-               object_key, content_type, checksum, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'available')
+              (organization_id, workspace_id, namespace_id, storage_policy_id,
+               process_run_id, artifact_type, object_key, content_type, checksum,
+               source_hash, source_version, size_bytes, retention_until,
+               integrity_status, status)
+           SELECT $1, $2, mn.id, mn.storage_policy_id, $3, $4, $5, $6, $7,
+                  $8, $9, $10,
+                  now() + (sp.retention_days::text || ' days')::interval,
+                  'verified', 'available'
+             FROM memory_namespaces mn
+             JOIN storage_policies sp ON sp.id = mn.storage_policy_id
+            WHERE mn.organization_id = $1 AND mn.key = 'organization-memory'
+              AND mn.status = 'active'
            ON CONFLICT (organization_id, object_key) DO NOTHING
            RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
-                     process_run_id AS "processRunId", artifact_type AS "artifactType",
-                     object_key AS "objectKey", content_type AS "contentType", checksum,
+                     namespace_id AS "namespaceId", process_run_id AS "processRunId",
+                     artifact_type AS "artifactType", object_key AS "objectKey",
+                     content_type AS "contentType", checksum, source_hash AS "sourceHash",
+                     source_version AS "sourceVersion", size_bytes AS "sizeBytes",
+                     retention_until AS "retentionUntil", integrity_status AS "integrityStatus",
                      status, created_at AS "createdAt"`,
           [
             input.organizationId,
             input.workspaceId,
             input.processRunId,
             input.artifactType,
-            input.objectKey,
+            objectKey,
             input.contentType,
             input.checksum ?? null,
+            input.sourceHash ?? null,
+            input.sourceVersion ?? null,
+            input.sizeBytes ?? null,
           ],
         );
         if (inserted.rowCount === 1) {
@@ -728,7 +762,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
                   status, created_at AS "createdAt"
              FROM artifacts
             WHERE organization_id = $1 AND object_key = $2`,
-          [input.organizationId, input.objectKey],
+          [input.organizationId, objectKey],
         );
         return { artifact: duplicate.rows[0], idempotent: true };
       });
@@ -736,6 +770,254 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         ...artifact,
         requestId: requestId(req),
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/artifact-uploads', async (req, res, next) => {
+    try {
+      if (!options.artifactObjectStore) throw new HttpError(503, 'artifact_storage_not_configured');
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, participantRoles, enforceMembership);
+      const input = createArtifactUploadSchema.parse({ ...req.body, ...context });
+      const requestHash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      const prepared = await withTransaction(pool, async (client) => {
+        const existing = await client.query<{
+          id: string;
+          objectKey: string;
+          requestHash: string;
+          contentType: string;
+          sizeBytes: number;
+          checksum: string;
+          status: string;
+        }>(
+          `SELECT a.id, a.object_key AS "objectKey", aui.request_hash AS "requestHash",
+                  a.content_type AS "contentType", aui.expected_size_bytes AS "sizeBytes",
+                  aui.expected_checksum AS checksum, a.status
+             FROM artifact_upload_intents aui
+             JOIN artifacts a ON a.id = aui.artifact_id
+            WHERE aui.organization_id = $1 AND aui.idempotency_key = $2
+            FOR UPDATE`,
+          [input.organizationId, input.idempotencyKey],
+        );
+        const existingRow = existing.rows[0];
+        if (existingRow) {
+          if (existingRow.requestHash !== requestHash) {
+            throw new HttpError(409, 'artifact_upload_idempotency_conflict');
+          }
+          if (existingRow.status !== 'pending') {
+            throw new HttpError(409, 'artifact_upload_not_pending');
+          }
+          await client.query(
+            `UPDATE artifact_upload_intents SET expires_at = $1
+              WHERE artifact_id = $2 AND consumed_at IS NULL`,
+            [expiresAt, existingRow.id],
+          );
+          return { ...existingRow, idempotent: true };
+        }
+
+        const scope = await client.query<{ storagePolicyId: string; retentionDays: number }>(
+          `SELECT mn.storage_policy_id AS "storagePolicyId", sp.retention_days AS "retentionDays"
+             FROM memory_namespaces mn
+             JOIN storage_policies sp ON sp.id = mn.storage_policy_id
+             JOIN flow_runs fr ON fr.id = $1
+            WHERE mn.id = $2 AND mn.organization_id = $3 AND mn.status = 'active'
+              AND sp.mode = 'casio_managed'
+              AND fr.organization_id = $3 AND fr.workspace_id = $4`,
+          [input.processRunId, input.namespaceId, input.organizationId, input.workspaceId],
+        );
+        const resolved = scope.rows[0];
+        if (!resolved) throw new HttpError(404, 'artifact_scope_not_found');
+        const keyHash = createHash('sha256').update(input.idempotencyKey).digest('hex');
+        const objectKey = `${input.organizationId}/${input.workspaceId}/${input.namespaceId}/${input.processRunId}/${keyHash}`;
+        const artifact = await client.query<{ id: string }>(
+          `INSERT INTO artifacts
+              (organization_id, workspace_id, namespace_id, storage_policy_id,
+               process_run_id, artifact_type, object_key, content_type, checksum,
+               source_hash, source_version, size_bytes, retention_until,
+               integrity_status, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                   now() + ($13::text || ' days')::interval, 'pending', 'pending')
+           RETURNING id`,
+          [
+            input.organizationId,
+            input.workspaceId,
+            input.namespaceId,
+            resolved.storagePolicyId,
+            input.processRunId,
+            input.artifactType,
+            objectKey,
+            input.contentType,
+            input.checksum,
+            input.sourceHash,
+            input.sourceVersion,
+            input.sizeBytes,
+            resolved.retentionDays,
+          ],
+        );
+        const artifactId = artifact.rows[0]!.id;
+        await client.query(
+          `INSERT INTO artifact_upload_intents
+              (artifact_id, organization_id, workspace_id, object_key, idempotency_key,
+               request_hash, expected_content_type, expected_size_bytes,
+               expected_checksum, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            artifactId,
+            input.organizationId,
+            input.workspaceId,
+            objectKey,
+            input.idempotencyKey,
+            requestHash,
+            input.contentType,
+            input.sizeBytes,
+            input.checksum,
+            expiresAt,
+          ],
+        );
+        return {
+          id: artifactId,
+          objectKey,
+          requestHash,
+          contentType: input.contentType,
+          sizeBytes: input.sizeBytes,
+          checksum: input.checksum,
+          status: 'pending',
+          idempotent: false,
+        };
+      });
+      const uploadUrl = await options.artifactObjectStore.createUploadUrl({
+        objectKey: prepared.objectKey,
+        contentType: prepared.contentType,
+        sizeBytes: Number(prepared.sizeBytes),
+        checksum: prepared.checksum,
+        expiresInSeconds: 900,
+      });
+      return res.status(prepared.idempotent ? 200 : 201).json({
+        artifact: { id: prepared.id, status: prepared.status },
+        upload: { method: 'PUT', url: uploadUrl, expiresAt: expiresAt.toISOString() },
+        idempotent: prepared.idempotent,
+        requestId: requestId(req),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/artifact-uploads/:artifactId/complete', async (req, res, next) => {
+    try {
+      if (!options.artifactObjectStore) throw new HttpError(503, 'artifact_storage_not_configured');
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, participantRoles, enforceMembership);
+      const input = completeArtifactUploadSchema.parse({
+        ...req.body,
+        ...context,
+        artifactId: req.params.artifactId,
+      });
+      const pending = await pool.query<{
+        objectKey: string;
+        expectedSizeBytes: number;
+        expectedChecksum: string;
+        expiresAt: Date;
+        consumedAt: Date | null;
+        status: string;
+      }>(
+        `SELECT a.object_key AS "objectKey", aui.expected_size_bytes AS "expectedSizeBytes",
+                aui.expected_checksum AS "expectedChecksum", aui.expires_at AS "expiresAt",
+                aui.consumed_at AS "consumedAt", a.status
+           FROM artifact_upload_intents aui
+           JOIN artifacts a ON a.id = aui.artifact_id
+          WHERE a.id = $1 AND a.organization_id = $2 AND a.workspace_id = $3`,
+        [input.artifactId, input.organizationId, input.workspaceId],
+      );
+      const pendingRow = pending.rows[0];
+      if (!pendingRow) throw new HttpError(404, 'artifact_upload_not_found');
+      if (pendingRow.consumedAt && pendingRow.status === 'available') {
+        return res.json({
+          artifact: { id: input.artifactId, status: 'available' },
+          idempotent: true,
+        });
+      }
+      if (pendingRow.expiresAt.getTime() <= Date.now()) {
+        throw new HttpError(409, 'artifact_upload_expired');
+      }
+      const observed = await options.artifactObjectStore.headObject(pendingRow.objectKey);
+      const integrityMatches =
+        observed.sizeBytes === pendingRow.expectedSizeBytes &&
+        observed.sizeBytes === input.observedSizeBytes &&
+        observed.checksum === pendingRow.expectedChecksum &&
+        observed.checksum === input.observedChecksum;
+      if (!integrityMatches) {
+        await pool.query(
+          `UPDATE artifacts SET integrity_status = 'mismatch', status = 'failed'
+            WHERE id = $1 AND organization_id = $2 AND workspace_id = $3`,
+          [input.artifactId, input.organizationId, input.workspaceId],
+        );
+        throw new HttpError(409, 'artifact_integrity_mismatch');
+      }
+      const artifact = await withTransaction(pool, async (client) => {
+        await client.query(
+          `UPDATE artifact_upload_intents SET consumed_at = now()
+            WHERE artifact_id = $1 AND consumed_at IS NULL`,
+          [input.artifactId],
+        );
+        const updated = await client.query(
+          `UPDATE artifacts SET integrity_status = 'verified', status = 'available'
+            WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+            RETURNING id, object_key AS "objectKey", status,
+                      integrity_status AS "integrityStatus", retention_until AS "retentionUntil"`,
+          [input.artifactId, input.organizationId, input.workspaceId],
+        );
+        await client.query(
+          `INSERT INTO audit_events
+              (organization_id, actor_id, event_type, subject_type, subject_id)
+           VALUES ($1, $2, 'artifact.verified', 'artifact', $3)`,
+          [input.organizationId, input.actorId, input.artifactId],
+        );
+        return updated.rows[0];
+      });
+      return res.json({ artifact, idempotent: false, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/artifacts/:artifactId/delete', async (req, res, next) => {
+    try {
+      if (!options.artifactObjectStore) throw new HttpError(503, 'artifact_storage_not_configured');
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const artifact = await pool.query<{ objectKey: string; status: string }>(
+        `SELECT a.object_key AS "objectKey", a.status
+           FROM artifacts a
+           JOIN storage_policies sp ON sp.id = a.storage_policy_id
+          WHERE a.id = $1 AND a.organization_id = $2 AND a.workspace_id = $3
+            AND sp.deletion_propagation = true`,
+        [req.params.artifactId, context.organizationId, context.workspaceId],
+      );
+      const row = artifact.rows[0];
+      if (!row) throw new HttpError(404, 'artifact_not_found');
+      if (row.status !== 'deleted') {
+        await options.artifactObjectStore.deleteObject(row.objectKey);
+        await withTransaction(pool, async (client) => {
+          await client.query(
+            `UPDATE artifacts
+                SET status = 'deleted', integrity_status = 'deleted', deleted_at = now(),
+                    deletion_propagated_at = now()
+              WHERE id = $1 AND organization_id = $2 AND workspace_id = $3`,
+            [req.params.artifactId, context.organizationId, context.workspaceId],
+          );
+          await client.query(
+            `INSERT INTO audit_events
+                (organization_id, actor_id, event_type, subject_type, subject_id)
+             VALUES ($1, $2, 'artifact.deleted', 'artifact', $3)`,
+            [context.organizationId, context.actorId, req.params.artifactId],
+          );
+        });
+      }
+      return res.json({ artifact: { id: req.params.artifactId, status: 'deleted' } });
     } catch (error) {
       next(error);
     }
@@ -758,6 +1040,167 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         throw new HttpError(404, 'artifact_not_found');
       }
       return res.json({ artifact: result.rows[0], requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/v1/pricing-assumptions', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const input = createPricingAssumptionSchema.parse({ ...req.body, ...context });
+      const pricingVersion = await pool.query(
+        `INSERT INTO pricing_assumption_versions
+            (organization_id, key, version, status, assumptions, effective_from, effective_until)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, key, version, status, assumptions,
+                   effective_from AS "effectiveFrom", effective_until AS "effectiveUntil",
+                   created_at AS "createdAt"`,
+        [
+          input.organizationId,
+          input.key,
+          input.version,
+          input.status,
+          input.assumptions,
+          input.effectiveFrom,
+          input.effectiveUntil ?? null,
+        ],
+      );
+      return res.status(201).json({
+        pricingVersion: pricingVersion.rows[0],
+        requestId: requestId(req),
+      });
+    } catch (error) {
+      if (hasPgCode(error, '23505')) {
+        return next(new HttpError(409, 'pricing_assumption_version_conflict'));
+      }
+      next(error);
+    }
+  });
+
+  app.post('/internal/v1/usage-events', async (req, res, next) => {
+    try {
+      if (!internalSecretMatches(req, options.dispatcherSecret)) {
+        throw new HttpError(401, 'usage_recorder_not_authorized');
+      }
+      const input = recordUsageEventSchema.parse(req.body);
+      const sourceHash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
+      const saved = await withTransaction(pool, async (client) => {
+        const scope = await client.query(
+          `SELECT 1
+             FROM flow_runs fr
+             JOIN flows f ON f.id = fr.flow_id
+             JOIN flow_versions fv ON fv.id = fr.flow_version_id AND fv.flow_id = f.id
+             JOIN memory_namespaces mn ON mn.id = $6
+             JOIN pricing_assumption_versions pav ON pav.id = $10
+            WHERE fr.id = $5 AND fr.organization_id = $1 AND fr.workspace_id = $2
+              AND f.id = $3 AND f.organization_id = $1 AND f.workspace_id = $2
+              AND fv.id = $4
+              AND mn.organization_id = $1 AND mn.status = 'active'
+              AND pav.status = 'active' AND pav.effective_from <= now()
+              AND (pav.effective_until IS NULL OR pav.effective_until > now())
+              AND (pav.organization_id IS NULL OR pav.organization_id = $1)
+              AND (
+                ($7::uuid IS NULL AND $8::uuid IS NULL)
+                OR EXISTS (
+                  SELECT 1 FROM external_tenants et
+                   WHERE et.id = $8 AND et.external_app_id = $7
+                     AND et.organization_id = $1 AND et.status = 'active'
+                )
+              )`,
+          [
+            input.organizationId,
+            input.workspaceId,
+            input.flowId,
+            input.flowVersionId,
+            input.processRunId,
+            input.namespaceId,
+            input.externalAppId ?? null,
+            input.externalTenantId ?? null,
+            input.actorId,
+            input.pricingVersionId,
+          ],
+        );
+        if (scope.rowCount !== 1) throw new HttpError(404, 'usage_attribution_scope_not_found');
+        const existing = await client.query<{ id: string; sourceHash: string }>(
+          `SELECT id, source_hash AS "sourceHash" FROM usage_events
+            WHERE organization_id = $1 AND idempotency_key = $2 FOR UPDATE`,
+          [input.organizationId, input.idempotencyKey],
+        );
+        const existingRow = existing.rows[0];
+        if (existingRow) {
+          if (existingRow.sourceHash !== sourceHash) {
+            throw new HttpError(409, 'usage_idempotency_payload_conflict');
+          }
+          return { id: existingRow.id, idempotent: true };
+        }
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO usage_events
+              (organization_id, external_app_id, external_tenant_id, workspace_id,
+               flow_id, flow_version_id, process_run_id, namespace_id, operation,
+               runtime, model, input_tokens, output_tokens, total_tokens,
+               input_bytes, output_bytes, total_bytes, latency_ms, unit_cost,
+               allocated_shared_cost, billable_amount, currency, payer,
+               pricing_version_id, idempotency_key, source_hash)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                   $12, $13, $12 + $13, $14, $15, $14 + $15, $16, $17,
+                   $18, $19, $20, $21, $22, $23, $24)
+           RETURNING id`,
+          [
+            input.organizationId,
+            input.externalAppId ?? null,
+            input.externalTenantId ?? null,
+            input.workspaceId,
+            input.flowId,
+            input.flowVersionId,
+            input.processRunId,
+            input.namespaceId,
+            input.operation,
+            input.runtime,
+            input.model ?? null,
+            input.inputTokens,
+            input.outputTokens,
+            input.inputBytes,
+            input.outputBytes,
+            input.latencyMs,
+            input.unitCost,
+            input.allocatedSharedCost,
+            input.billableAmount,
+            input.currency,
+            input.payer,
+            input.pricingVersionId,
+            input.idempotencyKey,
+            sourceHash,
+          ],
+        );
+        return { id: inserted.rows[0]!.id, idempotent: false };
+      });
+      return res.status(saved.idempotent ? 200 : 201).json({
+        usageEvent: { id: saved.id },
+        idempotent: saved.idempotent,
+        requestId: requestId(req),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/v1/usage/summary', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, administrativeRoles, enforceMembership);
+      const view = req.query.view;
+      if (view !== 'casioplus_pnl' && view !== 'ecosystem_tco') {
+        throw new HttpError(400, 'usage_summary_view_invalid');
+      }
+      const relation =
+        view === 'casioplus_pnl' ? 'casioplus_pnl_usage_view' : 'ecosystem_tco_usage_view';
+      const summary = await pool.query(
+        `SELECT * FROM ${relation} WHERE organization_id = $1 AND workspace_id = $2`,
+        [context.organizationId, context.workspaceId],
+      );
+      return res.json({ view, summary: summary.rows, requestId: requestId(req) });
     } catch (error) {
       next(error);
     }
