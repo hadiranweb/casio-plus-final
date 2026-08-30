@@ -37,7 +37,7 @@ export async function retrieveGovernedMemory(
               AND mg.purpose = $3
               AND mg.revoked_at IS NULL
               AND mg.valid_from <= now() AND mg.valid_until > now()
-              AND (mg.flow_id IS NULL OR mg.flow_id = $4)
+              AND (mg.flow_id IS NULL OR mg.flow_id = $4::uuid)
               AND (
                 NOT (mg.scope ? 'workspaceIds')
                 OR mg.scope->'workspaceIds' ? $2::text
