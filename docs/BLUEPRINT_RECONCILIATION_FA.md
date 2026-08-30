@@ -86,18 +86,18 @@ services/*-adapter → integration boundary محدود و typed
 
 ## ۷. وضعیت baseline و فاصلهٔ باقی‌مانده
 
-baseline فعلی ساختار Remix، command-center shell، authoring shell، navigation بین دو surface، shared contract و shared presentation primitive را فراهم می‌کند. این baseline هنوز production identity و onboarding نهایی نیست و token توسعه‌ای localStorage حذف شده و cookie/session امن، revocation، CSRF policy و authorization tenant-aware پیاده‌سازی شده‌اند.
+baseline فعلی ساختار Remix، command center Console، authoring و Run Control در Forge، navigation بین دو surface، shared contract و shared presentation primitive را فراهم می‌کند. token توسعه‌ای localStorage حذف شده و cookie/session امن، revocation، CSRF، authorization tenant-aware و control planeهای Organization، Integration، approval و economics پیاده‌سازی شده‌اند.
 
-| حوزه                                                                 | وضعیت                                                                           |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Console/Forge به‌عنوان یک محصول واحد                                 | implemented و در معماری، route shell و navigation ثبت شده است.                  |
-| Remix-only SSR                                                       | implemented و با build، `remix-serve` و SSR smoke اعتبارسنجی شده است.           |
-| Core/API TypeScript/Node.js و PostgreSQL canonical                   | implemented در vertical slice فعلی؛ گسترش feature-first ادامه دارد.             |
-| route map تفصیلی                                                     | design/backlog؛ فقط shellهای اصلی فعلاً فعال‌اند.                               |
-| identity و session production                                        | implemented؛ cookie امن، revocation، CSRF و PostgreSQL integration test دارد.   |
-| tenant isolation/RLS و MemoryNamespace/Grant/Broker کامل             | implemented؛ default-deny، purpose، grant، sensitivity و revoke آزموده شده‌اند. |
-| Integration Gateway کامل با nonce/outbox/retry و callback dispatcher | implemented؛ HMAC raw body، replay protection، mapping و outbox آزموده شده‌اند. |
-| Liara staging/production                                             | فعال نشده؛ prerequisiteهای زیرساخت، identity و evidence هنوز باید تکمیل شوند.   |
+| حوزه                                                                 | وضعیت                                                                            |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Console/Forge به‌عنوان یک محصول واحد                                 | implemented و در معماری، route shell و navigation ثبت شده است.                   |
+| Remix-only SSR                                                       | implemented و با build، `remix-serve` و SSR smoke اعتبارسنجی شده است.            |
+| Core/API TypeScript/Node.js و PostgreSQL canonical                   | implemented برای scope کامل MVP و تنها writer canonical.                         |
+| route map تفصیلی                                                     | مسیرهای اصلی Console و Forge برای MVP با دادهٔ canonical فعال‌اند.               |
+| identity و session production                                        | implemented؛ cookie امن، revocation، CSRF و PostgreSQL integration test دارد.    |
+| tenant isolation/RLS و MemoryNamespace/Grant/Broker کامل             | implemented؛ default-deny، purpose، grant، sensitivity و revoke آزموده شده‌اند.  |
+| Integration Gateway کامل با nonce/outbox/retry و callback dispatcher | implemented؛ HMAC raw body، replay protection، mapping و outbox آزموده شده‌اند.  |
+| staging/production provider-neutral                                  | اجرا نشده؛ انتخاب provider، secret، data plane، DNS/TLS و restore drill باز است. |
 
 ## ۸. Definition of Done برای ادامهٔ این مسیر
 

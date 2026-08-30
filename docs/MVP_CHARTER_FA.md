@@ -25,7 +25,7 @@ Tenant context باید از session معتبر و membership سرور تعیی�
 
 ### Console
 
-Console در `app.casioplus.com` account، organization، workspace، invitation، Flow catalog، publication، Work history، ProcessRun history، artifact، review inbox و Memory View را ارائه می‌دهد. Console ورودی را به Flow منتشرشده می‌سپارد و result را با permission مناسب نمایش می‌دهد. Console نباید draft graph، prompt داخلی، connector secret، raw runtime credential یا دادهٔ tenant دیگر را expose کند.
+Console در `console.casioplus.com` account، organization، workspace، invitation، Flow catalog، publication، Work history، ProcessRun history، artifact، review inbox و Memory View را ارائه می‌دهد. Console ورودی را به Flow منتشرشده می‌سپارد و result را با permission مناسب نمایش می‌دهد. Console نباید draft graph، prompt داخلی، connector secret، raw runtime credential یا دادهٔ tenant دیگر را expose کند.
 
 ### Forge
 

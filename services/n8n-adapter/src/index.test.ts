@@ -5,7 +5,7 @@ const webhook = {
   productionUrl: 'https://n8n.example.com/webhook/casioplus-diagnosis',
   testUrl: 'https://n8n.example.com/webhook-test/casioplus-diagnosis',
   authentication: 'header' as const,
-  allowedOrigins: ['https://app.casioplus.com'],
+  allowedOrigins: ['https://console.casioplus.com'],
   responseMode: 'respond_to_webhook' as const,
 };
 
@@ -14,7 +14,7 @@ describe('n8n adapter boundary', () => {
     const binding = createN8nOrchestratorBinding(webhook);
     expect(binding).toMatchObject({ runtime: 'n8n', role: 'orchestrator-only' });
     expect(binding.webhook.authentication).toBe('header');
-    expect(binding.webhook.allowedOrigins).toEqual(['https://app.casioplus.com']);
+    expect(binding.webhook.allowedOrigins).toEqual(['https://console.casioplus.com']);
   });
 
   it('adds a non-secret runtime marker to outbound HTTP requests', () => {

@@ -156,7 +156,23 @@ jobs:
               n8nImport: 'passed',
               remixSsr: 'passed',
               runtimeCompose: 'passed',
-              productionImages: 'passed'
+              productionImages: 'passed',
+              organizationControlPlane: 'passed',
+              integrationControlPlane: 'passed',
+              runtimeGovernanceControlPlane: 'passed'
+            },
+            infrastructure: {
+              status: 'awaiting-user-decision',
+              pending: [
+                'provider-and-region',
+                'postgres-pitr-and-restore-drill',
+                'object-storage-lifecycle',
+                'secret-manager-and-rotation',
+                'dns-tls-ingress',
+                'runtime-credentials',
+                'observability-alerting',
+                'user-production-approval'
+              ]
             }
           };
           writeFileSync('release-evidence.json', `${JSON.stringify(evidence, null, 2)}\n`);

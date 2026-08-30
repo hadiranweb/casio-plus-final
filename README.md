@@ -123,3 +123,7 @@ Console اکنون Approval Inbox، target/policy lifecycle، planning assumptio
 | [`REMIX_MIGRATION_INPUT_REVIEW_FA.md`](docs/REMIX_MIGRATION_INPUT_REVIEW_FA.md)                       | ممیزی guide، patch و log migration Remix            |
 | [`REPOSITORY_STRUCTURE_AND_REMIX_BASELINE_FA.md`](docs/REPOSITORY_STRUCTURE_AND_REMIX_BASELINE_FA.md) | ساختار عملیاتی monorepo و کد پایهٔ Remix            |
 | [`BLUEPRINT_RECONCILIATION_FA.md`](docs/BLUEPRINT_RECONCILIATION_FA.md)                               | هم‌راستاسازی command center، route map و دو surface |
+| [`PRODUCTION_DEPLOYMENT_DECISION_PACKET_FA.md`](docs/PRODUCTION_DEPLOYMENT_DECISION_PACKET_FA.md)     | تصمیم‌های زیرساخت و خط توقف پیش از deployment       |
+| [`BACKUP_RESTORE_ROLLBACK_RUNBOOK_FA.md`](docs/BACKUP_RESTORE_ROLLBACK_RUNBOOK_FA.md)                 | backup، restore drill، rollback و incident boundary |
+| [`DEPLOYMENT_CICD_FA.md`](docs/DEPLOYMENT_CICD_FA.md)                                                 | CI/CD و promotion provider-neutral                  |
+| [`GITHUB_GOVERNANCE_STATUS_FA.md`](docs/GITHUB_GOVERNANCE_STATUS_FA.md)                               | وضعیت protection و کنترل‌های جبرانی GitHub          |

@@ -17,9 +17,9 @@
 
 ## کنترل‌های جبرانی
 
-تا زمان فعال‌شدن branch protection، هر commit روی `main` باید workflowهای `CI` و `Release Casioplus` را اجرا کند. `CI` شامل frozen install، format، typecheck، unit test، topology، repository security، dependency policy، migration smoke، build، Remix SSR smoke و Docker build چهار واحد Core، Worker، Console و Forge است.
+تا زمان فعال‌شدن branch protection، هر commit روی `main` باید workflow `CI` را با موفقیت کامل کند. `CI` شامل frozen install، format، typecheck، unit و PostgreSQL integration test، topology، repository security، dependency policy، migration smoke، build، performance، Golden Flow، accessibility، n8n import، Remix SSR، Compose contract و Docker build هشت واحد production است.
 
-production deployment تنها از workflow دستی و Environment `production` انجام می‌شود. متغیر `LIARA_DEPLOY_ENABLED` به‌صورت پیش‌فرض تعریف نشده است؛ بنابراین هیچ push عادی استقرار واقعی انجام نمی‌دهد. فعال‌سازی deployment مستلزم ثبت secretها، health check، rollback و تأیید صریح release است.
+workflow دستی `Prepare Casioplus Release Candidate` فقط candidate را اعتبارسنجی و artifact شواهد با `deploymentPerformed: false` تولید می‌کند. هیچ push یا workflow فعلی deployment واقعی انجام نمی‌دهد. workflow staging/production فقط پس از انتخاب provider، ثبت secret reference، health check، restore/rollback evidence و تأیید صریح کاربر ایجاد می‌شود.
 
 ## شرط ارتقای governance
 

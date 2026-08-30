@@ -8,7 +8,7 @@
 
 **محصول:** Casioplus / کاسیو پلاس
 
-**repository canonical:** `hadiranweb/casio-plus`
+**repository canonical:** `hadiranweb/casio-plus-final`
 
 ## ۱. تصمیم نهایی در یک نگاه
 
@@ -34,7 +34,7 @@ Casioplus یک محصول واحد است که Console و Forge دو surface آ�
 
 ```text
 کاربر
-  ├── app.casioplus.com
+  ├── console.casioplus.com
   │     └── Console / Remix Control Plane
   └── forge.casioplus.com
         └── Forge / Remix Authoring Surface

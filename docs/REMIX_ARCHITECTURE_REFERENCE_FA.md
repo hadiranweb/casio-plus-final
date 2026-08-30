@@ -12,7 +12,7 @@ Console و Forge در Casioplus باید Remix applicationهای TypeScript با
 
 ## نکتهٔ deployment
 
-برای Liara، Dockerfile هر surface باید production dependencyهای همان package را با `pnpm --filter ... deploy --prod --legacy` آماده کند، build Remix را در stage ساخت اجرا کند، `build/server` را به runtime منتقل کند و `remix-serve` را روی پورت قراردادی اجرا کند. در این monorepo، `--legacy` به‌دلیل تنظیمات pnpm 10 و workspace غیر-injected صریح است؛ تغییر آن فقط پس از migration به injected workspace packages و validation دوباره مجاز است. Console و Forge همچنان دو surface یک محصول‌اند و environment binding عمومی Core باید از loader/root به client برسد؛ secret server-side نباید در loader response یا browser bundle قرار گیرد.
+Dockerfile هر surface باید production dependencyهای همان package را با workspace deployment رسمی pnpm 10 آماده کند، build Remix را در stage ساخت اجرا نماید، `build/server` و `build/client` را به runtime منتقل کند و `remix-serve` را روی پورت قراردادی اجرا نماید. این monorepo از injected workspace packages استفاده می‌کند و image build هر دو surface در CI اجباری است. Console و Forge همچنان دو surface یک محصول‌اند و environment binding عمومی Core باید از loader/root به client برسد؛ secret server-side نباید در loader response یا browser bundle قرار گیرد. provider، ingress، DNS و TLS در مرحلهٔ deployment انتخاب می‌شوند و نباید داخل معماری Remix hard-code شوند.
 
 ## منابع رسمی
 

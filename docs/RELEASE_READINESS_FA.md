@@ -1,50 +1,51 @@
-# گزارش وضعیت Release Readiness — Casioplus
+# گزارش Release Readiness کاسیو پلاس
 
-**وضعیت کلی:** MVP قابل‌توسعه و قابل‌اعتبارسنجی در repository عمومی آماده است، اما هنوز production deployment عملی روی Liara انجام نشده است. معیار این گزارش تفکیک دقیق بین «کد و pipeline سبز» و «سرویس production با resource و secret واقعی» است.
+**نویسنده:** Manus AI
 
-## source of truth
+**وضعیت:** Production deployment candidate؛ هنوز deploy نشده
 
-Repository محلی `/home/ubuntu/casio-plus` یک repository تازه با تاریخچهٔ Git مستقل است و مقصد آن `hadiranweb/casio-plus` روی branch `main` است. snapshot معتبر نشست قبلی با commit `701cde5440536474d60072c516aee719293af47a` به‌عنوان سنگ‌بنا وارد شده است؛ تغییر Remix در commit `1203b0ef7de92f86c9ad5423c53262e030c1805d` روی همین baseline اعمال و به remote push شده است. هیچ token یا environment credential در baseline جدید commit نشده است.
+**Repository:** `hadiranweb/casio-plus-final`، خصوصی
 
-## آنچه اکنون واقعاً ساخته شده است
+**Candidate SHA:** `248773eac487e990a1c40de4d20f0b9ca8b59552`
 
-| حوزه                | وضعیت                       | شواهد                                                                                                                                           |
-| ------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| معماری و scope      | تکمیل                       | `MVP_CHARTER_FA.md`، `GOLDEN_FLOW_FA.md`، `DOMAIN_GLOSSARY_FA.md` و `ARCHITECTURE_BASELINE_FA.md`                                               |
-| Core/API            | فعال در مسیر vertical slice | TypeScript/Node.js، PostgreSQL، session امضاشده، membership enforcement، CORS allowlist، correlation ID و request logging بدون body/token       |
-| canonical lifecycle | فعال                        | WorkItem، Flow/FlowVersion، ProcessRun، RuntimeEvent، Artifact metadata، SemanticRecord، KnowledgeClaim، Review، Promotion و governed retrieval |
-| Native runtime      | فعال و مستقل                | HTTP server با HMAC، body limit، schema validation، health و execute؛ بدون direct database access                                               |
-| Console surface     | build‌شده، non-public       | Remix SSR dashboard فارسی‌اول برای Work، Run، Artifact و Memory؛ runtime با `remix-serve`                                                       |
-| Forge surface       | build‌شده، non-public       | Remix SSR authoring/governance surface برای Flow، version، runtime binding و publication؛ runtime با `remix-serve`                              |
-| runtime boundaries  | قراردادهای MVP موجود        | n8n orchestrator-only، Open WebUI interaction/model-plane و OpenClaw allowlisted/approval-gated                                                 |
-| migrations          | production-oriented         | migrationهای ordered با registry، SHA-256 checksum، drift detection و idempotent rerun                                                          |
-| CI/CD               | فعال در GitHub              | CI با PostgreSQL service و build همهٔ unitها؛ deploy workflow با staging و production gate                                                      |
+## حکم
 
-## شواهد validation محلی
+کد اصلی سوپرپلتفرم کامل و در GitHub ثبت شده است. Core/API تنها canonical writer، PostgreSQL تنها canonical store و Console و Forge دو surface Remix هستند. runtimeهای Native، n8n، Open WebUI و OpenClaw از مرز adapter و outbox استفاده می‌کنند و دسترسی مستقیم PostgreSQL ندارند.
 
-فرمان‌های زیر در آخرین دور validation موفق اجرا شدند: `pnpm format:check`، `pnpm check`، `pnpm test`، `pnpm validate:topology` و `pnpm build`. آخرین اجرای unit test محلی شامل **۷ فایل تست و ۲۷ تست موفق** بود. Golden Flow واقعی نیز روی PostgreSQL محلی اجرا شد و از signed Bearer session، ایجاد FlowVersion، ساخت و شروع ProcessRun، اجرای built Native Worker، ثبت `diagnosis.completed`، ثبت Artifact، دو SemanticRecord، KnowledgeClaim، Review، Promotion و governed search عبور کرد.
+این وضعیت با production deployment یکسان نیست. database، object storage، secret manager، DNS/TLS، runtime credential، observability، backup/restore و rollback هنوز باید روی محیط staging واقعی ایجاد و اثبات شوند. تصمیم‌های لازم در [`PRODUCTION_DEPLOYMENT_DECISION_PACKET_FA.md`](PRODUCTION_DEPLOYMENT_DECISION_PACKET_FA.md) آمده‌اند.
 
-Migration smoke روی database تمیز و اجرای مجدد آن با checksum registry موفق است. Native Worker built-artifact smoke نیز health، HMAC نامعتبر و execution معتبر را آزموده است. خطاهای transient اتصال در حلقهٔ انتظار smoke صرفاً مربوط به startup محلی بودند و در پایان همان smoke، status رسمی `GOLDEN_FLOW_STATUS=passed` ثبت شد.
+## وضعیت قابلیت‌ها
 
-### شواهد migration Remix
+| حوزه                  | وضعیت                               | شواهد                                                                                                           |
+| --------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Identity و tenant     | Complete                            | cookie session، CSRF، Organization، Workspace، member، invitation، context rotation و isolation tests           |
+| Integration Gateway   | Complete                            | HMAC raw body، timestamp، nonce، key rotation metadata، mapping server-side، outbox، retry و callback allowlist |
+| Memory governance     | Complete                            | namespace، grant، purpose، Flow، sensitivity، validity، promotion، retrieval و graph از Memory Broker           |
+| Artifact و economics  | Complete                            | presigned artifact lifecycle، retention/deletion propagation، immutable usage و تفکیک P&L/TCO                   |
+| Console               | Complete برای MVP                   | Organization، Integration، Approval Inbox، action governance، metering، economics و graph                       |
+| Forge                 | Complete برای MVP                   | Flow، version، publication، runtime definition، Work، ProcessRun، approval و status/result                      |
+| Runtimeها             | Complete برای activation در staging | Native، n8n، Open WebUI model-only و OpenClaw approval-gated با adapter مستقل                                   |
+| Quality gates         | Complete                            | PostgreSQL tests، security، Docker، Golden Flow، accessibility، performance، n8n import و SSR smoke             |
+| Production operations | Not executed                        | provider، secretها، restore drill، DNS/TLS، observability و canary هنوز باز هستند                               |
 
-هر دو surface با `remix vite:build` خروجی `build/server` و `build/client` تولید کردند. typecheck ریشه با NodeNext پس از افزودن declaration رسمی `remix.env.d.ts` و importهای قابل‌resolve موفق شد. اجرای production dependency deployment با `pnpm --filter @casioplus/console-web deploy --prod --legacy` و معادل Forge موفق بود و هر دو bundle، `remix-serve` و `build/server/index.js` را داشتند. SSR smoke هر دو surface نیز title، `lang=fa`، `dir=rtl` و public Core URL را بدون افشای secret بررسی کرد. Docker daemon محلی در دسترس نیست؛ Docker build به CI سپرده شده و تا دریافت نتیجهٔ آن، شواهد image نهایی محسوب نمی‌شود.
+## شواهد GitHub
 
-## شواهد GitHub Actions
+[CI run 33330615721](https://github.com/hadiranweb/casio-plus-final/actions/runs/33330615721) روی candidate SHA موفق شد. این workflow format، typecheck، تمام unit و PostgreSQL integration testها، topology، n8n validation، repository security، dependency policy، migration smoke، build، performance budgets، Golden Flow، accessibility، n8n import، Remix SSR، Compose contract، تمام production imageها و dependency inventory را اجرا کرد.
 
-پس از push commit `1203b0ef7de92f86c9ad5423c53262e030c1805d`، CI با conclusion موفق پایان یافت و validation کامل، SSR smoke هر دو Remix surface و Docker build هر دو Dockerfile UI را اجرا کرد. اجرای `Deploy to Liara` نیز با conclusion موفق پایان یافت؛ `validate-before-deploy` موفق بود و jobهای staging و production به‌دلیل فعال‌نبودن `LIARA_DEPLOY_ENABLED` هر دو `skipped` شدند. deployment واقعی انجام نشده است و این رفتار از تلاش برای deploy با app name یا secret ناقص جلوگیری می‌کند.
+workflow دستی [`Prepare Casioplus Release Candidate`](../.github/workflows/release-candidate.yml) provider-neutral است. این workflow فقط candidate را دوباره اعتبارسنجی و `release-evidence.json` با `deploymentPerformed: false` تولید می‌کند؛ هیچ deploymentی انجام نمی‌دهد.
 
-| workflow          | آخرین وضعیت مشاهده‌شده              | تفسیر                                                                                |
-| ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
-| `CI`              | success                             | code، tests، migration smoke، Remix SSR smoke، Docker build و build pipeline سبز است |
-| `Deploy to Liara` | success با deployment jobs skip‌شده | workflow معتبر است، ولی Liara deploy هنوز عمداً فعال نشده است                        |
+## ریسک‌های باز
 
-## کارهای باقی‌مانده تا production واقعی
-
-پیش از فعال‌کردن gate باید چهار app مستقل Liara برای Core، Worker، Console و Forge ساخته شوند و PostgreSQL canonical، Redis، Object Storage، private network، domain و environment variables واقعی پیکربندی شوند. سپس secrets زیر باید در GitHub Environmentهای مناسب قرار گیرند: `LIARA_API_TOKEN`، `LIARA_CORE_APP`، `LIARA_WORKER_APP`، `LIARA_CONSOLE_WEB_APP` و `LIARA_FORGE_WEB_APP`. `LIARA_DEPLOY_ENABLED` باید ابتدا برای staging فعال شود، نه production.
-
-همچنین باید `DATABASE_URL`، `SESSION_SECRET`، `RUNTIME_SHARED_SECRET`، `NATIVE_WORKER_URL`، `CORS_ORIGINS` و `CASIOPLUS_CORE_API_URL` با مقادیر staging تنظیم و بعد از health، tenant isolation، migration و Golden Flow از بیرون شبکهٔ deployment بررسی شوند. production فقط پس از approval Environment و ثبت rollback pointer فعال شود. Login/onboarding واقعی، artifact upload به Object Storage و queue/BullMQ هنوز بخشی از hardening بعدی هستند و نباید با session issuer محلی یا header bootstrap فعلی جایگزین شوند.
+| ریسک                          | نوع            | کنترل قبل از Go-Live                                             |
+| ----------------------------- | -------------- | ---------------------------------------------------------------- |
+| نبود restore evidence         | عملیاتی        | PostgreSQL PITR و runtime volume restore drill در staging        |
+| نبود secret lifecycle واقعی   | عملیاتی        | secret manager، least privilege، rotation و revocation drill     |
+| runtimeهای بیرونی غیرفعال     | پیکربندی       | credential آزمایشی، allowlist و activation gate                  |
+| invitation delivery           | provider-bound | domain verification و ارسال ایمیل تراکنشی                        |
+| نبود observability production | عملیاتی        | log، metrics، alerts، retention و on-call route                  |
+| محدودیت GitHub protection     | governance     | protection قوی‌تر یا risk acceptance مستند                       |
+| سه advisory Moderate          | dependency     | waiver machine-readable معتبر؛ patch پیش از انقضا یا waiver تازه |
 
 ## تصمیم release
 
-این repository برای ادامهٔ کار تیمی، branch protection و ساخت staging آماده است؛ برای اعلام «production-ready» هنوز زود است. گام بعدی عملیاتی، ساخت resourceهای Liara و اجرای یک deployment staging کنترل‌شده با secrets خارج از repository است. تا آن زمان، `main` باید منبع واحد کد بماند و هیچ credentialی در workflow، Dockerfile، frontend bundle یا commit قرار نگیرد.
+`main` و candidate بالا مبنای ساخت staging هستند. هیچ build یا hotfix مستقیم روی سرور مجاز نیست. گام بعدی، دریافت تصمیم زیرساخت از کاربر و اجرای staging مطابق [`BACKUP_RESTORE_ROLLBACK_RUNBOOK_FA.md`](BACKUP_RESTORE_ROLLBACK_RUNBOOK_FA.md) است. تا آن زمان repository production-candidate است، اما سرویس production اعلام نمی‌شود.

@@ -2,6 +2,21 @@ version: 1
 product: casioplus
 architecture: typescript-core-postgres-mvp
 readiness: production-deployment-candidate-not-yet-deployed
+exposure_model:
+  direct_container_ports_public: false
+  public_https_ingress:
+    - console-web
+    - forge-web
+    - core-api-browser-endpoint
+  internal_only:
+    - native-diagnosis-worker
+    - integration-dispatcher
+    - n8n-adapter
+    - open-webui-adapter
+    - openclaw-adapter
+    - n8n-runtime
+    - open-webui-runtime
+    - openclaw-runtime
 units:
   core-api:
     path: services/core-api
@@ -34,7 +49,7 @@ units:
     docker_build_validation: ci
   integration-dispatcher:
     path: services/integration-dispatcher
-    status: mvp-outbox-dispatcher
+    status: production-candidate-outbox-dispatcher
     public: false
     trigger: core-internal-api
     canonical_store_access: false
@@ -116,6 +131,11 @@ promotion:
     - migration-on-empty-database
     - core-health
     - tenant-isolation
+    - organization-workspace-member-invitation-control-plane
+    - external-app-key-rotation-and-tenant-mapping
+    - forge-run-lifecycle
+    - approval-inbox-and-action-governance
+    - runtime-metering-and-economics-control-plane
     - n8n-workflow-validation
     - n8n-adapter-authentication
     - open-webui-model-only-contract
@@ -126,7 +146,9 @@ promotion:
     - performance-budgets
     - independent-design-audit
     - artifact-delivery
+    - backup-restore-drill
     - rollback-pointer
+    - user-production-approval
 constraints:
   mysql_legacy_dual_write: false
   rust_critical_path: false

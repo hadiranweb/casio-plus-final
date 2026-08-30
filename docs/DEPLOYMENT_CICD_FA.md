@@ -1,33 +1,56 @@
-# قرارداد CI/CD و استقرار Casioplus روی Liara
+# قرارداد CI/CD و Promotion کاسیو پلاس
 
-## تصمیم معماری
+**نویسنده:** Manus AI
 
-Casioplus یک monorepo باقی می‌ماند، اما هر deployment unit به‌صورت مستقل build و deploy می‌شود: `core-api`، `native-diagnosis-worker`، `console-web` و `forge-web`. PostgreSQL، Redis و Object Storage resourceهای زیرساختی هستند و درون runtimeهای AI یا adapterها credential مستقیم PostgreSQL قرار نمی‌گیرد.
+**وضعیت:** Provider-neutral و non-deploying تا تصمیم زیرساخت
 
-این تفکیک با مدل استقرار Liara هم‌راستاست: workflow از GitHub Actions اجرا می‌شود، Dockerfile مربوط به همان unit را به CLI می‌دهد و نام app و token فقط از GitHub Environment secrets خوانده می‌شوند. مستندات رسمی Liara، PaaS API را برای مدیریت lifecycle، deployment، environment variables، domain و scale معرفی می‌کند.[1] CLI رسمی نیز `liara deploy` را با flagهای `--api-token`، `--app`، `--path`، `--platform`، `--dockerfile` و `--port` ارائه می‌دهد.[2]
+## اصل
 
-## workflowها
+GitHub source of truth کد و release evidence است. build روی سرور production مجاز نیست. هر release از SHA مشخص ساخته، با image digest immutable ثبت و ابتدا در staging اجرا می‌شود. workflow فعلی [`Prepare Casioplus Release Candidate`](../.github/workflows/release-candidate.yml) فقط validation و artifact evidence تولید می‌کند و مقدار `deploymentPerformed: false` را ثبت می‌نماید؛ هیچ provider، DNS، database یا runtime واقعی را تغییر نمی‌دهد.
 
-فایل `.github/workflows/ci.yml` برای pull request و push به `main` اجرا می‌شود و frozen install، formatting، typecheck، test، topology، migration روی PostgreSQL سرویس‌شده و build همهٔ unitها را انجام می‌دهد. هیچ secret deploymentی در CI عادی لازم نیست.
+GitHub Environment می‌تواند approval، branch/tag restriction و secretهای محیط را اعمال کند، اما دسترس‌پذیری برخی protectionها برای repository خصوصی به plan حساب وابسته است.[1] تا زمان فعال‌شدن protection کامل، کنترل جبرانی عبارت است از workflow دستی provider-neutral، CI سبز روی همان SHA، review صریح کاربر و ثبت release evidence.
 
-فایل `.github/workflows/deploy.yml` پس از push به `main` validation را تکرار می‌کند و فقط در صورتی deployment staging را برای چهار unit آغاز می‌کند که repository variable به نام `LIARA_DEPLOY_ENABLED=true` تنظیم شده باشد. production علاوه بر همین gate، فقط از `workflow_dispatch` با انتخاب `production` فعال می‌شود و به GitHub Environment محافظت‌شدهٔ production وابسته است. در نتیجه merge به `main` به‌تنهایی نباید production را تغییر دهد و تا پیش از ساخت appهای Liara، deployها به‌صورت امن skip می‌شوند.
+## Pipeline اجباری
 
-| Environment  | Trigger                                                            | Required secrets                                                                                        | Gate                            |
-| ------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `staging`    | push به `main` یا dispatch staging، با `LIARA_DEPLOY_ENABLED=true` | `LIARA_API_TOKEN`، `LIARA_CORE_APP`، `LIARA_WORKER_APP`، `LIARA_CONSOLE_WEB_APP`، `LIARA_FORGE_WEB_APP` | CI سبز و Environment staging    |
-| `production` | فقط dispatch با input production و gate فعال                       | همان secrets در Environment production                                                                  | approval محافظت‌شدهٔ production |
+| مرحله      | گیت                                                                            |
+| ---------- | ------------------------------------------------------------------------------ |
+| Source     | format، typecheck، topology constitution و repository security                 |
+| Dependency | Critical/High صفر و Moderate فقط با waiver معتبر و منقضی‌نشده                  |
+| Data       | migration روی PostgreSQL خالی، checksum ledger و integration test واقعی        |
+| Product    | build Console/Forge/Core/Worker/Dispatcher/adapterها و performance budgets     |
+| Workflow   | import واقعی n8n با image pin‌شده                                              |
+| UX         | Golden Flow، accessibility شش‌حالته و Remix SSR smoke                          |
+| Runtime    | Compose contract و image build همهٔ واحدهای production                         |
+| Evidence   | SHA، workflow run، target intended، gate status و `deploymentPerformed: false` |
 
-## prerequisites دستی پیش از اولین deploy
+## Promotion پس از انتخاب provider
 
-ابتدا باید چهار app مستقل Liara، PostgreSQL canonical، Redis و Object Storage ساخته شوند. سپس هر app باید port، environment variables و در صورت نیاز private network مشترک خود را دریافت کند. `DATABASE_URL` و `SESSION_SECRET` فقط برای Core، `RUNTIME_SHARED_SECRET` و `NATIVE_WORKER_PORT` فقط برای Worker، و `CASIOPLUS_CORE_API_URL` برای loader سمت server در Console و Forge تنظیم می‌شوند. Console و Forge به‌صورت Remix SSR با `build/server` و `build/client` ساخته و با `remix-serve` اجرا می‌شوند؛ Vite فقط compiler رسمی Remix است. مقدارهای واقعی نباید در GitHub repository، Dockerfile، loader response یا browser bundle commit/افشا شوند.
+| گذار                | شرط                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| SHA → Candidate     | CI و release-candidate workflow روی همان SHA سبز باشد.                                |
+| Candidate → Staging | secret injection، PostgreSQL، object storage، DNS sandbox و observability آماده باشد. |
+| Staging → Canary    | پنج Golden Flow، negative tenant tests، restore drill و rollback rehearsal موفق باشد. |
+| Canary → Production | تأیید صریح کاربر، image digest، schema state، alert و rollback pointer ثبت شده باشد.  |
 
-برای Core، health check باید به `/healthz` متصل شود و release migration طبق policy کنترل‌شدهٔ تیم اجرا شود. برای Worker، endpoint فقط روی شبکهٔ private منتشر شود و `RUNTIME_SHARED_SECRET` حداقل ۳۲ کاراکتر تصادفی باشد. برای Console و Forge، دامنه‌ها به‌ترتیب `app.casioplus.com` و `forge.casioplus.com` و `CORS_ORIGINS` در Core باید به‌صورت allowlist دقیق تنظیم شوند.
+workflow استقرار واقعی فقط پس از انتخاب provider ایجاد می‌شود و باید این ورودی‌ها را بگیرد: environment، candidate SHA، image digest map، migration mode و approval reference. workflow نباید image را دوباره بسازد و نباید secret را در log یا artifact چاپ کند.
 
-## rollback و evidence
+## Environment contract
 
-قبل از promotion، commit SHA، خروجی CI، migration registry و health check هر چهار unit باید ثبت شوند. rollback با انتخاب release قبلی همان Liara app انجام می‌شود؛ migrationهای destructive تا زمانی که rollback policy و backup تأیید نشده ممنوع‌اند. شواهد مورد انتظار در `deployment/RELEASE_MANIFEST.yaml` ثبت شده‌اند، اما این repository هنوز با این workflowها deploy نشده است و آماده‌بودن کد با production readiness عملیاتی یکسان نیست.
+| محیط       | کاربرد                      | داده                         | runtime بیرونی                      |
+| ---------- | --------------------------- | ---------------------------- | ----------------------------------- |
+| CI         | validation deterministic    | PostgreSQL disposable        | n8n import؛ بدون credential واقعی   |
+| Staging    | اثبات topology و operations | دادهٔ مصنوعی یا پاک‌سازی‌شده | credential و channel آزمایشی محدود  |
+| Production | workload واقعی              | دادهٔ canonical              | allowlist، approval و metering فعال |
+
+staging و production نباید database، bucket، secret namespace یا runtime datastore مشترک داشته باشند. Console و Forge فقط از Core همان محیط استفاده می‌کنند و adapterها هیچ‌گاه `DATABASE_URL` canonical دریافت نمی‌کنند.
+
+## Rollback
+
+Rollback application با بازگرداندن image digest قبلی انجام می‌شود. migrationهای canonical append-only هستند؛ down migration خودکار ندارند. در failure ناسازگار با schema، traffic write و Dispatcher متوقف و forward fix یا PITR طبق [`BACKUP_RESTORE_ROLLBACK_RUNBOOK_FA.md`](BACKUP_RESTORE_ROLLBACK_RUNBOOK_FA.md) اجرا می‌شود.
+
+Docker برای production استفاده از configuration جدا، حذف bind mount کد، restart policy، logging و rebuild image در تغییر را توصیه می‌کند.[2] جزئیات تصمیم provider و خط توقف در [`PRODUCTION_DEPLOYMENT_DECISION_PACKET_FA.md`](PRODUCTION_DEPLOYMENT_DECISION_PACKET_FA.md) آمده است.
 
 ## References
 
-[1]: https://developers.liara.ir/pages/paas 'Liara PaaS API documentation'
-[2]: https://github.com/liara-cloud/cli 'Liara CLI official repository and command reference'
+[1]: https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments 'GitHub Deployments and Environments'
+[2]: https://docs.docker.com/compose/how-tos/production/ 'Docker — Use Compose in production'

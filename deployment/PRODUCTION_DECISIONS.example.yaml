@@ -1,0 +1,58 @@
+schemaVersion: casioplus.production-decisions.v1
+status: awaiting-user-decision
+staging:
+  hostProvider: null
+  region: null
+  useHadiranJeffCloudComputer: null
+production:
+  hostProvider: null
+  region: null
+postgres:
+  provider: null
+  version: 16
+  highAvailability: null
+  rpoMinutes: null
+  rtoMinutes: null
+  pitrEnabled: null
+objectStorage:
+  provider: null
+  region: null
+  bucketName: null
+  versioningEnabled: null
+  retentionPolicyReference: null
+secrets:
+  provider: null
+  namespace: null
+  rotationOwner: null
+registry:
+  provider: null
+  repositoryNamespace: null
+ingress:
+  dnsProvider: null
+  tlsManager: null
+  consoleHostname: console.casioplus.com
+  forgeHostname: forge.casioplus.com
+  coreApiHostname: null
+invitationDelivery:
+  emailProvider: null
+  verifiedDomain: null
+modelPlane:
+  provider: null
+  allowedModels: []
+actionPlane:
+  allowedChannels: []
+  targetOwner: null
+observability:
+  provider: null
+  logRetentionDays: null
+  alertReceiver: null
+githubGovernance:
+  strengthenProtectionBeforeProduction: null
+  temporaryRiskAcceptanceReference: null
+approval:
+  decidedBy: null
+  decidedAt: null
+  productionApproved: false
+notes: >-
+  This file stores decisions and secret references only. Never place passwords,
+  tokens, connection strings, private keys, channel credentials, or secret values here.
