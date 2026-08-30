@@ -313,6 +313,13 @@ export const governedRetrievalSchema = organizationContextSchema.extend({
   limit: z.number().int().min(1).max(50).default(10),
 });
 
+export const governedMemoryGraphSchema = organizationContextSchema.extend({
+  purpose: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
+  flowId: identifierSchema.optional(),
+  namespaceIds: z.array(identifierSchema).min(1).max(50).optional(),
+  limit: z.number().int().min(10).max(80).default(60),
+});
+
 export const createMemoryNamespaceSchema = organizationContextSchema.extend({
   key: slugSchema,
   name: z.string().trim().min(1).max(200),
@@ -361,5 +368,6 @@ export type KnowledgePromotionInput = z.infer<typeof knowledgePromotionSchema>;
 export type NativeDiagnosisJob = z.infer<typeof nativeDiagnosisJobSchema>;
 export type NativeExecutionResult = z.infer<typeof nativeExecutionResultSchema>;
 export type GovernedRetrievalInput = z.infer<typeof governedRetrievalSchema>;
+export type GovernedMemoryGraphInput = z.infer<typeof governedMemoryGraphSchema>;
 export type CreateMemoryNamespaceInput = z.infer<typeof createMemoryNamespaceSchema>;
 export type CreateMemoryGrantInput = z.infer<typeof createMemoryGrantSchema>;

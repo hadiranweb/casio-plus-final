@@ -353,7 +353,7 @@ export default function Forge() {
           <div>
             <span className="session-state">
               <i />
-              governed session
+              session معتبر
             </span>
             <div className="forge-person">{session.user.displayName.slice(0, 1)}</div>
           </div>
@@ -373,14 +373,6 @@ export default function Forge() {
                 <GitBranch size={15} />
                 {versions.length} version
               </a>
-              <button
-                className="publish-action"
-                onClick={createVersion}
-                disabled={!selectedFlow || loading}
-              >
-                <Save size={15} />
-                ذخیرهٔ version
-              </button>
             </div>
           </section>
 

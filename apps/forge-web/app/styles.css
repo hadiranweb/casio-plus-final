@@ -159,7 +159,7 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 22px 8px 10px;
-  color: #778178;
+  color: #8f9c94;
   font:
     9px ui-monospace,
     SFMono-Regular,
@@ -224,7 +224,7 @@ a {
   font-size: 11px;
 }
 .flow-list small {
-  color: #6f7a72;
+  color: #91a098;
   font:
     8px ui-monospace,
     SFMono-Regular,
@@ -288,7 +288,7 @@ a {
 }
 .flow-rail-foot small {
   margin-top: 3px;
-  color: #758078;
+  color: #8c9990;
   font-size: 8px;
 }
 .flow-rail-foot > a {
@@ -324,7 +324,7 @@ a {
   gap: 3px;
 }
 .forge-topbar span {
-  color: #778079;
+  color: #5d6961;
   font-size: 9px;
 }
 .forge-topbar strong {
@@ -377,7 +377,7 @@ a {
     Menlo,
     monospace;
   letter-spacing: 0.13em;
-  color: #5d7a67;
+  color: #4f6c5a;
 }
 .forge-heading h1 {
   max-width: 780px;
@@ -388,7 +388,7 @@ a {
 }
 .forge-heading p {
   margin: 0;
-  color: #68726b;
+  color: #606a63;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -559,7 +559,7 @@ a {
   font-size: 10px;
 }
 .runtime-grid small {
-  color: #7b857e;
+  color: #5f6a63;
   font:
     8px ui-monospace,
     SFMono-Regular,
@@ -651,7 +651,7 @@ a {
   min-width: 22px;
   padding: 3px 6px;
   background: #eef1ee;
-  color: #667168;
+  color: #556158;
   text-align: center;
 }
 .flow-map {
@@ -677,7 +677,7 @@ a {
   display: grid;
   place-items: center;
   background: #e8ece9;
-  color: #667168;
+  color: #556158;
   font:
     8px ui-monospace,
     SFMono-Regular,
@@ -697,7 +697,7 @@ a {
   font-size: 10px;
 }
 .map-node small {
-  color: #7f8882;
+  color: #5f6963;
   font:
     8px ui-monospace,
     SFMono-Regular,
@@ -761,7 +761,7 @@ a {
   font-size: 9px;
 }
 .version-list small {
-  color: #869088;
+  color: #5f6963;
   font:
     7px ui-monospace,
     SFMono-Regular,

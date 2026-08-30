@@ -79,6 +79,19 @@ jobs:
       - name: Build deployment units
         run: pnpm build
 
+      - name: Validate performance budgets
+        run: pnpm validate:performance
+
+      - name: Golden Flow end-to-end smoke
+        env:
+          DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_ci
+        run: pnpm smoke:golden
+
+      - name: Accessibility validation
+        env:
+          DATABASE_URL: postgresql://casioplus:casioplus@127.0.0.1:5432/casioplus_ci
+        run: pnpm validate:accessibility
+
       - name: Validate n8n workflow import
         run: |
           docker run --rm \

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyMigrations, createPool } from './db.js';
-import { retrieveGovernedMemory } from './memory-broker.js';
+import { retrieveGovernedMemory, retrieveGovernedMemoryGraph } from './memory-broker.js';
 import { loadMigrations } from './migrations.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -228,6 +228,35 @@ describeWithDatabase('Memory Broker governance', () => {
     expect(allowed.governance.appliedGrantIds).toContain(grantId);
   });
 
+  it('builds promoted-only lineage graph through the same purpose and grant boundary', async () => {
+    const ownGraph = await retrieveGovernedMemoryGraph(pool, {
+      ...grantor,
+      purpose: 'console.memory_graph',
+      limit: 60,
+    });
+    expect(ownGraph.nodes.map((node) => node.entityType)).toEqual(
+      expect.arrayContaining(['namespace', 'memory', 'claim', 'semantic_record', 'run', 'flow']),
+    );
+    expect(ownGraph.edges.map((edge) => edge.relation)).toEqual(
+      expect.arrayContaining([
+        'belongs_to',
+        'promoted_from',
+        'derived_from',
+        'recorded_in',
+        'executed_by',
+      ]),
+    );
+    expect(ownGraph.governance.promotedOnly).toBe(true);
+
+    const sharedGraph = await retrieveGovernedMemoryGraph(pool, {
+      ...grantee,
+      purpose: 'support.case',
+      limit: 60,
+    });
+    expect(sharedGraph.nodes.some((node) => node.entityType === 'memory')).toBe(true);
+    expect(sharedGraph.governance.appliedGrantIds).toContain(grantId);
+  });
+
   it('applies revoke immediately and records access decisions', async () => {
     await pool.query(`UPDATE memory_grants SET revoked_at = now() WHERE id = $1`, [grantId]);
     const result = await retrieveGovernedMemory(pool, {
@@ -244,6 +273,6 @@ describeWithDatabase('Memory Broker governance', () => {
         WHERE requester_organization_id = $1`,
       [grantee.organizationId],
     );
-    expect(Number(decisions.rows[0]!.count)).toBeGreaterThanOrEqual(4);
+    expect(Number(decisions.rows[0]!.count)).toBeGreaterThanOrEqual(5);
   });
 });

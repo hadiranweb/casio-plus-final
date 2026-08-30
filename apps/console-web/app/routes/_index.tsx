@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouteLoaderData } from '@remix-run/react';
 import { CasioplusBrandMark } from '@casioplus/ui';
 import type { loader as rootLoader } from '../root.js';
+import type { MemoryGraphData } from '../components/MemoryGraph3D.client.js';
+
+const MemoryGraph3D = lazy(() => import('../components/MemoryGraph3D.client.js'));
 import {
   Activity,
   ArrowLeft,
@@ -82,6 +85,17 @@ type OrganizationScope = {
   workspaceSlug: string;
   actorId: string;
   role: string;
+};
+
+type MemoryGraphResponse = MemoryGraphData & {
+  governance: {
+    permissionFiltered: true;
+    purpose: string;
+    allowedNamespaceIds: string[];
+    appliedGrantIds: string[];
+    promotedOnly: true;
+    expiredExcluded: true;
+  };
 };
 
 type ApiState = {
@@ -229,10 +243,11 @@ function AuthGateway({
         </div>
       </section>
       <form className="auth-form" onSubmit={submit}>
-        <div className="auth-tabs" role="tablist" aria-label="نوع ورود">
+        <div className="auth-tabs" role="group" aria-label="نوع ورود">
           <button
             type="button"
             className={mode === 'login' ? 'active' : ''}
+            aria-pressed={mode === 'login'}
             onClick={() => setMode('login')}
           >
             ورود
@@ -240,6 +255,7 @@ function AuthGateway({
           <button
             type="button"
             className={mode === 'register' ? 'active' : ''}
+            aria-pressed={mode === 'register'}
             onClick={() => setMode('register')}
           >
             ایجاد سازمان
@@ -351,6 +367,9 @@ export default function Console() {
   const [searched, setSearched] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [memoryGraph, setMemoryGraph] = useState<MemoryGraphResponse | null>(null);
 
   const csrfToken = session?.csrfToken ?? '';
   const activeFlow = useMemo(
@@ -391,6 +410,7 @@ export default function Console() {
       } catch (requestError) {
         if (requestError instanceof ApiError && requestError.status === 401) {
           setSession(null);
+          setMemoryGraph(null);
           setData(initialApiState);
         } else {
           setError(requestError instanceof Error ? requestError.message : 'data_load_failed');
@@ -412,12 +432,14 @@ export default function Console() {
         setError(requestError instanceof Error ? requestError.message : 'core_unavailable');
       }
       setSession(null);
+      setMemoryGraph(null);
     } finally {
       setBooting(false);
     }
   }, [apiBase, loadOperationalData]);
 
   useEffect(() => {
+    setHydrated(true);
     void bootstrap();
   }, [bootstrap]);
 
@@ -466,12 +488,29 @@ export default function Console() {
     }
   };
 
+  const loadMemoryGraph = async () => {
+    setGraphLoading(true);
+    setError('');
+    try {
+      const response = await requestJson<MemoryGraphResponse>(
+        apiBase,
+        '/api/v1/memory/graph?purpose=console.memory_graph&limit=60',
+      );
+      setMemoryGraph(response);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'memory_graph_load_failed');
+    } finally {
+      setGraphLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await requestJson(apiBase, '/api/v1/auth/logout', csrfToken, { method: 'POST' });
     } finally {
       setSession(null);
       setScope(null);
+      setMemoryGraph(null);
       setData(initialApiState);
     }
   };
@@ -556,6 +595,10 @@ export default function Console() {
           <a className="rail-link" href="#memory">
             <BrainCircuit size={17} />
             حافظه
+          </a>
+          <a className="rail-link" href="#memory-graph">
+            <Network size={17} />
+            نقشهٔ حافظه
           </a>
           <a className="rail-link" href="#economics">
             <WalletCards size={17} />
@@ -688,10 +731,7 @@ export default function Console() {
                   <span>RUN TIMELINE</span>
                   <h2>آخرین اجراها</h2>
                 </div>
-                <span className="live-label">
-                  <i />
-                  live
-                </span>
+                <span className="live-label">آخرین داده</span>
               </div>
               {data.runs.length === 0 ? (
                 <div className="empty-state">
@@ -804,6 +844,61 @@ export default function Console() {
                 </div>
               )}
             </section>
+          </section>
+
+          <section className="surface memory-graph-surface" id="memory-graph">
+            <div className="surface-head memory-graph-heading">
+              <div>
+                <span>MEMORY / LINEAGE</span>
+                <h2>گراف سه‌بعدی حافظهٔ سازمانی</h2>
+                <p>
+                  فقط حافظهٔ promoted و معتبر در namespaceهای مجاز، همراه با Claim، Semantic Record،
+                  Run و Flow نمایش داده می‌شود.
+                </p>
+              </div>
+              <button
+                className="secondary-action"
+                type="button"
+                onClick={() => void loadMemoryGraph()}
+                disabled={graphLoading}
+              >
+                <Network size={16} />
+                {graphLoading
+                  ? 'در حال بارگذاری…'
+                  : memoryGraph
+                    ? 'تازه‌سازی گراف'
+                    : 'بارگذاری گراف'}
+              </button>
+            </div>
+            {!memoryGraph ? (
+              <div className="memory-graph-placeholder">
+                <Network size={26} />
+                <strong>گراف فقط با درخواست شما بارگذاری می‌شود</strong>
+                <span>Three.js و دادهٔ graph در بار اولیهٔ Console دانلود نمی‌شوند.</span>
+              </div>
+            ) : memoryGraph.nodes.length === 0 ? (
+              <div className="empty-state">
+                <BrainCircuit size={24} />
+                <strong>حافظهٔ promoted در scope فعلی وجود ندارد</strong>
+                <span>پس از review و promotion، تبار واقعی رکوردها اینجا نمایش داده می‌شود.</span>
+              </div>
+            ) : hydrated ? (
+              <Suspense
+                fallback={<div className="memory-graph-placeholder">در حال آماده‌سازی WebGL…</div>}
+              >
+                <MemoryGraph3D data={memoryGraph} />
+              </Suspense>
+            ) : (
+              <div className="memory-graph-placeholder">گراف پس از hydration فعال می‌شود.</div>
+            )}
+            {memoryGraph && (
+              <footer className="memory-graph-governance">
+                <span>{memoryGraph.governance.allowedNamespaceIds.length} namespace مجاز</span>
+                <span>{memoryGraph.governance.appliedGrantIds.length} grant اعمال‌شده</span>
+                <span>promoted only</span>
+                <span>expired excluded</span>
+              </footer>
+            )}
           </section>
 
           <section className="economics-band" id="economics">

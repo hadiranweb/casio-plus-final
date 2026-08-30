@@ -19,6 +19,7 @@ import {
   createSemanticRecordSchema,
   decideActionApprovalSchema,
   createWorkItemSchema,
+  governedMemoryGraphSchema,
   governedRetrievalSchema,
   knowledgePromotionSchema,
   nativeExecutionResultSchema,
@@ -34,7 +35,7 @@ import type { ArtifactObjectStore } from './artifact-storage.js';
 import { assertCsrfForCookieRequest } from './auth.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
-import { retrieveGovernedMemory } from './memory-broker.js';
+import { retrieveGovernedMemory, retrieveGovernedMemoryGraph } from './memory-broker.js';
 import {
   mountIntegrationGateway,
   type IntegrationSecretMap,
@@ -2262,6 +2263,27 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         return updated.rows[0];
       });
       return res.json({ grant: revoked, requestId: requestId(req) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/v1/memory/graph', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, participantRoles, enforceMembership);
+      const input = governedMemoryGraphSchema.parse({
+        ...context,
+        purpose: req.query.purpose,
+        flowId: typeof req.query.flowId === 'string' ? req.query.flowId : undefined,
+        namespaceIds:
+          typeof req.query.namespaceIds === 'string'
+            ? req.query.namespaceIds.split(',').filter(Boolean)
+            : undefined,
+        limit: Number(req.query.limit ?? 60),
+      });
+      const result = await retrieveGovernedMemoryGraph(pool, input);
+      return res.json({ ...result, requestId: requestId(req) });
     } catch (error) {
       next(error);
     }
