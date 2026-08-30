@@ -61,8 +61,8 @@ describeWithDatabase('n8n runtime orchestration boundary', () => {
     flowId = flow.rows[0]!.id;
     const version = await pool.query<{ id: string }>(
       `INSERT INTO flow_versions
-          (flow_id, version, runtime_binding, definition, status, created_by_actor_id)
-       VALUES ($1, 1, 'n8n', $2, 'published', $3) RETURNING id`,
+          (flow_id, version, runtime_binding, definition, created_by_actor_id)
+       VALUES ($1, 1, 'n8n', $2, $3) RETURNING id`,
       [flowId, { steps: [{ kind: 'transform', name: 'normalize' }] }, actorId],
     );
     flowVersionId = version.rows[0]!.id;
