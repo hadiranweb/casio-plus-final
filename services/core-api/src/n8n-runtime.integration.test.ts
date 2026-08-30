@@ -86,6 +86,7 @@ describeWithDatabase('n8n runtime orchestration boundary', () => {
     app = createApp(pool, {
       resolveTenantContext: async () => ({ organizationId, workspaceId, actorId }),
       dispatcherSecret,
+      integrationSecrets: {},
       enforceMembership: true,
     });
   });
@@ -134,7 +135,7 @@ describeWithDatabase('n8n runtime orchestration boundary', () => {
           output: { decision: 'approved' },
         },
       });
-    expect(result.status).toBe(200);
+    expect(result.status, JSON.stringify(result.body)).toBe(200);
     expect(result.body.status).toBe('dispatched');
 
     const run = await pool.query<{ status: string; output: Record<string, unknown> }>(
@@ -189,7 +190,7 @@ describeWithDatabase('n8n runtime orchestration boundary', () => {
       .post(`/internal/v1/outbox/${outbox.rows[0]!.id}/result`)
       .set('x-casioplus-dispatcher-secret', dispatcherSecret)
       .send({ status: 'dead_letter', errorCode: 'n8n_webhook_unavailable' });
-    expect(failed.status).toBe(200);
+    expect(failed.status, JSON.stringify(failed.body)).toBe(200);
     const persisted = await pool.query<{ status: string; errorCode: string }>(
       `SELECT status, error_code AS "errorCode" FROM flow_runs WHERE id = $1`,
       [run.rows[0]!.id],
