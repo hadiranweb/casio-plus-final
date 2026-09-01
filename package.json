@@ -21,6 +21,9 @@
     "build:openclaw-adapter": "pnpm --filter @casioplus/openclaw-adapter build",
     "build:console": "pnpm --filter @casioplus/console-web build",
     "build:forge": "pnpm --filter @casioplus/forge-web build",
+    "i18n:compile": "pnpm --filter @casioplus/i18n build",
+    "prebuild": "pnpm i18n:compile",
+    "precheck": "pnpm i18n:compile",
     "check": "tsc --noEmit",
     "check:worker": "pnpm --filter @casioplus/native-diagnosis-worker check",
     "test": "vitest run --no-file-parallelism",
@@ -34,6 +37,8 @@
     "validate:n8n": "tsx scripts/validate-n8n-workflows.ts",
     "validate:performance": "tsx scripts/validate-performance-budgets.ts",
     "validate:accessibility": "tsx scripts/validate-accessibility.ts",
+    "validate:i18n": "tsx scripts/validate-i18n-catalogs.ts",
+    "validate:i18n:spike": "tsx scripts/validate-i18n-spike.ts",
     "security:audit": "tsx scripts/validate-dependency-policy.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

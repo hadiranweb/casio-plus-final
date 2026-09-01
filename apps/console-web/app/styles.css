@@ -2293,3 +2293,60 @@ button {
     padding: 10px 0;
   }
 }
+
+.locale-switcher {
+  position: fixed;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(17, 24, 20, 0.16);
+  border-radius: 999px;
+  background: rgba(244, 245, 240, 0.94);
+  box-shadow: 0 8px 28px rgba(17, 24, 20, 0.12);
+  backdrop-filter: blur(14px);
+}
+.locale-switcher > span {
+  padding-inline: 8px 4px;
+  color: #536159;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.locale-switcher button {
+  min-height: 34px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+.locale-switcher button[aria-pressed='true'] {
+  background: #111814;
+  color: #f4f5f0;
+}
+.locale-switcher button:focus-visible {
+  outline: 3px solid rgba(26, 123, 84, 0.32);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .locale-switcher {
+    inset-block-start: 10px;
+    inset-inline-end: 10px;
+  }
+  .locale-switcher > span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

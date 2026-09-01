@@ -30,6 +30,7 @@ const requiredDirectories = [
   'packages/contracts',
   'packages/domain',
   'packages/knowledge-model',
+  'packages/i18n',
   'packages/ui',
   'migrations',
   'runtime/n8n/workflows',
@@ -67,7 +68,11 @@ const { stdout: trackedFiles } = await execFileAsync('git', ['ls-files', '-z'], 
 });
 const generatedTrackedPaths = trackedFiles
   .split('\0')
-  .filter((file) => /(^|\/)(node_modules|dist|build)(\/|$)/.test(file));
+  .filter(
+    (file) =>
+      /(^|\/)(node_modules|dist|build)(\/|$)/.test(file) ||
+      /^packages\/i18n\/src\/paraglide\//.test(file),
+  );
 if (generatedTrackedPaths.length > 0) {
   throw new Error(`Generated paths must stay outside Git: ${generatedTrackedPaths.join(', ')}`);
 }
@@ -78,6 +83,7 @@ const workspacePackages = [
   'packages/contracts/package.json',
   'packages/domain/package.json',
   'packages/knowledge-model/package.json',
+  'packages/i18n/package.json',
   'packages/ui/package.json',
   'services/core-api/package.json',
   'services/integration-dispatcher/package.json',
@@ -102,11 +108,12 @@ for (const relativePath of workspacePackages) {
 }
 
 const allowedInternalDependencies: Record<string, string[]> = {
-  '@casioplus/console-web': ['@casioplus/contracts', '@casioplus/ui'],
-  '@casioplus/forge-web': ['@casioplus/contracts', '@casioplus/ui'],
+  '@casioplus/console-web': ['@casioplus/contracts', '@casioplus/i18n', '@casioplus/ui'],
+  '@casioplus/forge-web': ['@casioplus/contracts', '@casioplus/i18n', '@casioplus/ui'],
   '@casioplus/contracts': [],
   '@casioplus/domain': [],
   '@casioplus/knowledge-model': ['@casioplus/domain'],
+  '@casioplus/i18n': [],
   '@casioplus/ui': [],
   '@casioplus/core-api': [
     '@casioplus/contracts',
