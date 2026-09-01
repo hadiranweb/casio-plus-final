@@ -262,6 +262,25 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
 
+  services/github-app-adapter:
+    dependencies:
+      '@casioplus/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.13.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
+
   services/integration-dispatcher:
     dependencies:
       zod:
@@ -343,6 +362,9 @@ importers:
 
   services/openclaw-adapter:
     dependencies:
+      '@casioplus/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       zod:
         specifier: ^4.1.12
         version: 4.4.3

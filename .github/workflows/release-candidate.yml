@@ -124,6 +124,7 @@ jobs:
           docker build --file deployment/Dockerfile.n8n-adapter --tag casioplus-n8n-adapter-candidate:${GITHUB_SHA} .
           docker build --file deployment/Dockerfile.open-webui-adapter --tag casioplus-open-webui-adapter-candidate:${GITHUB_SHA} .
           docker build --file deployment/Dockerfile.openclaw-adapter --tag casioplus-openclaw-adapter-candidate:${GITHUB_SHA} .
+          docker build --file deployment/Dockerfile.github-app-adapter --tag casioplus-github-app-adapter-candidate:${GITHUB_SHA} .
           docker build --file deployment/Dockerfile.console --tag casioplus-console-candidate:${GITHUB_SHA} .
           docker build --file deployment/Dockerfile.forge --tag casioplus-forge-candidate:${GITHUB_SHA} .
 

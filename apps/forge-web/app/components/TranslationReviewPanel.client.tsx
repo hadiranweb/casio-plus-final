@@ -2,7 +2,17 @@ import { formatStatusLabel } from '@casioplus/i18n/display-labels';
 import { formatDateTime } from '@casioplus/i18n/formatters';
 import { m } from '@casioplus/i18n/messages';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, FileCheck2, Pencil, RefreshCw, Send, X } from 'lucide-react';
+import {
+  Check,
+  ExternalLink,
+  FileCheck2,
+  GitPullRequest,
+  Pencil,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 
 type ChangeSet = {
   id: string;
@@ -20,6 +30,13 @@ type ChangeSet = {
   proposedCount?: number;
   acceptedCount?: number;
   rejectedCount?: number;
+  approvalId?: string | null;
+  outboxId?: string | null;
+  repositoryBranchRef?: string | null;
+  pullRequestNumber?: number | null;
+  pullRequestUrl?: string | null;
+  pullRequestHeadSha?: string | null;
+  failureCode?: string | null;
 };
 
 type ChangeSetItem = {
@@ -83,6 +100,7 @@ export default function TranslationReviewPanel({ apiBase, csrfToken, actorId, ro
 
   const canAuthor = ['owner', 'admin', 'editor'].includes(role);
   const canReviewRole = ['owner', 'admin', 'reviewer'].includes(role);
+  const canQueueRepositorySync = ['owner', 'admin', 'editor', 'reviewer'].includes(role);
   const canReview = Boolean(
     canReviewRole &&
     selected &&
@@ -221,6 +239,30 @@ export default function TranslationReviewPanel({ apiBase, csrfToken, actorId, ro
         { method: 'POST', body: {} },
       );
     }, m.forge_translation_review_completed());
+  }, [apiBase, csrfToken, mutate, selected]);
+
+  const requestRepositoryApproval = useCallback(() => {
+    if (!selected) return;
+    void mutate(async () => {
+      await requestJson(
+        apiBase,
+        `/api/v1/translation-change-sets/${selected.id}/request-approval`,
+        csrfToken,
+        { method: 'POST', body: { expiresInSeconds: 86_400 } },
+      );
+    }, m.forge_translation_repository_approval_requested());
+  }, [apiBase, csrfToken, mutate, selected]);
+
+  const queueRepositorySync = useCallback(() => {
+    if (!selected) return;
+    void mutate(async () => {
+      await requestJson(
+        apiBase,
+        `/api/v1/translation-change-sets/${selected.id}/queue-sync`,
+        csrfToken,
+        { method: 'POST', body: {} },
+      );
+    }, m.forge_translation_repository_queued());
   }, [apiBase, csrfToken, mutate, selected]);
 
   const pendingItems = useMemo(
@@ -424,6 +466,68 @@ export default function TranslationReviewPanel({ apiBase, csrfToken, actorId, ro
                 >
                   <FileCheck2 size={14} /> {m.forge_translation_review_complete()}
                 </button>
+              )}
+
+              {selected.status === 'ready_for_approval' && canReviewRole && (
+                <button
+                  type="button"
+                  className="primary-action"
+                  disabled={pending}
+                  onClick={requestRepositoryApproval}
+                >
+                  <ShieldCheck size={14} />
+                  {m.forge_translation_repository_request_approval()}
+                </button>
+              )}
+
+              {selected.status === 'pending_approval' && (
+                <div className="translation-review-boundary">
+                  {m.forge_translation_repository_awaiting_approval()}
+                </div>
+              )}
+
+              {selected.status === 'approved' && canQueueRepositorySync && (
+                <button
+                  type="button"
+                  className="primary-action"
+                  disabled={pending}
+                  onClick={queueRepositorySync}
+                >
+                  <GitPullRequest size={14} /> {m.forge_translation_repository_queue()}
+                </button>
+              )}
+
+              {selected.status === 'sync_queued' && (
+                <div className="translation-review-boundary">
+                  {m.forge_translation_repository_queued()}
+                </div>
+              )}
+
+              {selected.pullRequestUrl && selected.pullRequestNumber && (
+                <div className="translation-repository-result">
+                  <a href={selected.pullRequestUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink size={14} />
+                    {m.forge_translation_repository_open_pr({
+                      number: selected.pullRequestNumber,
+                    })}
+                  </a>
+                  <p>
+                    {selected.status === 'merged'
+                      ? m.forge_translation_repository_merged()
+                      : m.forge_translation_repository_pr_ready()}
+                  </p>
+                </div>
+              )}
+
+              {selected.status === 'failed' && (
+                <div className="translation-review-boundary">
+                  <p>{m.forge_translation_repository_failed()}</p>
+                  {selected.failureCode && (
+                    <code dir="ltr">
+                      {m.forge_translation_repository_failure_code()}: {selected.failureCode}
+                    </code>
+                  )}
+                </div>
               )}
             </div>
           )}

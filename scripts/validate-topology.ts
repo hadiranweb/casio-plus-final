@@ -26,6 +26,7 @@ const requiredDirectories = [
   'services/n8n-adapter',
   'services/open-webui-adapter',
   'services/openclaw-adapter',
+  'services/github-app-adapter',
   'services/native-diagnosis-worker',
   'packages/contracts',
   'packages/domain',
@@ -91,6 +92,7 @@ const workspacePackages = [
   'services/n8n-adapter/package.json',
   'services/open-webui-adapter/package.json',
   'services/openclaw-adapter/package.json',
+  'services/github-app-adapter/package.json',
 ];
 
 type Manifest = {
@@ -124,7 +126,8 @@ const allowedInternalDependencies: Record<string, string[]> = {
   '@casioplus/integration-dispatcher': [],
   '@casioplus/n8n-adapter': [],
   '@casioplus/open-webui-adapter': [],
-  '@casioplus/openclaw-adapter': [],
+  '@casioplus/openclaw-adapter': ['@casioplus/contracts'],
+  '@casioplus/github-app-adapter': ['@casioplus/contracts'],
 };
 
 const sharedUiEntrypoint = 'packages/ui/src/index.tsx';
@@ -229,6 +232,10 @@ const runtimeAdapterDockerfiles: Record<string, string[]> = {
     '@casioplus/openclaw-adapter build',
     '@casioplus/openclaw-adapter deploy',
     'openclaw@2026.7.1-2',
+  ],
+  'deployment/Dockerfile.github-app-adapter': [
+    '@casioplus/github-app-adapter build',
+    '@casioplus/github-app-adapter deploy',
   ],
 };
 for (const [dockerfile, requiredFragments] of Object.entries(runtimeAdapterDockerfiles)) {

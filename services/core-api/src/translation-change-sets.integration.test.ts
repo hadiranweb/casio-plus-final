@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,6 +8,26 @@ import { loadMigrations } from './migrations.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
+const dispatcherSecret = 'translation-repository-dispatcher-secret-2026';
+const githubIntegrationSecret = 'translation-github-integration-secret-2026';
+const githubExternalAppKey = 'translation-github-app';
+const githubIntegrationKeyId = 'translation-github-v1';
+
+function signedGithubIntegrationHeaders(rawBody: string, nonce: string) {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = createHmac('sha256', githubIntegrationSecret)
+    .update(`${timestamp}.${nonce}.`, 'utf8')
+    .update(Buffer.from(rawBody))
+    .digest('hex');
+  return {
+    'content-type': 'application/json',
+    'x-casioplus-external-app': githubExternalAppKey,
+    'x-casioplus-key-id': githubIntegrationKeyId,
+    'x-casioplus-nonce': nonce,
+    'x-casioplus-timestamp': timestamp,
+    'x-casioplus-signature': signature,
+  };
+}
 
 function hash(value: string) {
   return createHash('sha256').update(value, 'utf8').digest('hex');
@@ -20,6 +40,7 @@ describeWithDatabase('translation change set governance', () => {
   let workspaceId = '';
   let proposerId = '';
   let reviewerId = '';
+  let pricingVersionId = '';
   let siblingWorkspaceId = '';
   let siblingActorId = '';
   let otherOrganizationId = '';
@@ -169,6 +190,37 @@ describeWithDatabase('translation change set governance', () => {
     workspaceId = primary.workspaceId;
     proposerId = await createActor(organizationId, workspaceId, 'owner', 'Translation Proposer');
     reviewerId = await createActor(organizationId, workspaceId, 'reviewer', 'Translation Reviewer');
+    const storagePolicy = await pool.query<{ id: string }>(
+      `INSERT INTO storage_policies (organization_id, mode, retention_days, deletion_propagation)
+       VALUES ($1, 'casio_managed', 365, true) RETURNING id`,
+      [organizationId],
+    );
+    await pool.query(
+      `INSERT INTO memory_namespaces
+          (organization_id, workspace_id, storage_policy_id, key, name, namespace_kind)
+       VALUES ($1, NULL, $2, 'translation-memory', 'Translation Memory', 'governed')`,
+      [organizationId, storagePolicy.rows[0]!.id],
+    );
+    const externalApp = await pool.query<{ id: string }>(
+      `INSERT INTO external_apps (key, name) VALUES ($1, 'Translation GitHub App') RETURNING id`,
+      [githubExternalAppKey],
+    );
+    await pool.query(
+      `INSERT INTO integration_keys (external_app_id, key_id, secret_ref)
+       VALUES ($1, $2, 'GITHUB_TRANSLATION_TEST_SECRET')`,
+      [externalApp.rows[0]!.id, githubIntegrationKeyId],
+    );
+    const externalTenant = await pool.query<{ id: string }>(
+      `INSERT INTO external_tenants (external_app_id, external_tenant_ref, organization_id)
+       VALUES ($1, 'hadiranweb', $2) RETURNING id`,
+      [externalApp.rows[0]!.id, organizationId],
+    );
+    await pool.query(
+      `INSERT INTO external_workspace_mappings
+          (external_tenant_id, external_workspace_ref, organization_id, workspace_id)
+       VALUES ($1, 'casio-plus-final', $2, $3)`,
+      [externalTenant.rows[0]!.id, organizationId, workspaceId],
+    );
     const siblingWorkspace = await pool.query<{ id: string }>(
       `INSERT INTO workspaces (organization_id, name, slug)
        VALUES ($1, 'Sibling Translation Workspace', $2) RETURNING id`,
@@ -201,7 +253,21 @@ describeWithDatabase('translation change set governance', () => {
         return context;
       },
       enforceMembership: true,
+      dispatcherSecret,
+      integrationSecrets: { GITHUB_TRANSLATION_TEST_SECRET: githubIntegrationSecret },
     });
+    const pricing = await request(app)
+      .post('/api/v1/pricing-assumptions')
+      .set('x-test-actor-id', proposerId)
+      .send({
+        key: 'translation-repository-sync',
+        version: 1,
+        status: 'active',
+        assumptions: { source: 'integration-test-only' },
+        effectiveFrom: new Date(Date.now() - 60_000).toISOString(),
+      });
+    expect(pricing.status, JSON.stringify(pricing.body)).toBe(201);
+    pricingVersionId = pricing.body.pricingVersion.id;
   });
 
   afterAll(async () => {
@@ -502,5 +568,241 @@ describeWithDatabase('translation change set governance', () => {
       .send(proposalBody(crossTenantRun.processRunId));
     expect(rejected.status).toBe(404);
     expect(rejected.body.error).toBe('translation_process_run_not_found');
+  });
+
+  it('requires an allowlisted four-eyes approval before queueing a metered translation pull request', async () => {
+    const run = await createRun();
+    const created = await request(app)
+      .post('/api/v1/translation-change-sets')
+      .set('x-test-actor-id', proposerId)
+      .send(proposalBody(run.processRunId));
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const changeSetId = created.body.changeSet.id as string;
+    const submitted = await request(app)
+      .post(`/api/v1/translation-change-sets/${changeSetId}/submit`)
+      .set('x-test-actor-id', proposerId)
+      .send({});
+    expect(submitted.status, JSON.stringify(submitted.body)).toBe(200);
+    for (const item of created.body.items as Array<{ id: string }>) {
+      const reviewed = await request(app)
+        .patch(`/api/v1/translation-change-sets/${changeSetId}/items/${item.id}/review`)
+        .set('x-test-actor-id', reviewerId)
+        .send({ decision: 'accepted', reason: 'Reviewed for repository synchronization.' });
+      expect(reviewed.status, JSON.stringify(reviewed.body)).toBe(200);
+    }
+    const completed = await request(app)
+      .post(`/api/v1/translation-change-sets/${changeSetId}/complete-review`)
+      .set('x-test-actor-id', reviewerId)
+      .send({});
+    expect(completed.status, JSON.stringify(completed.body)).toBe(200);
+    expect(completed.body.changeSet.status).toBe('ready_for_approval');
+
+    const missingPolicy = await request(app)
+      .post(`/api/v1/translation-change-sets/${changeSetId}/request-approval`)
+      .set('x-test-actor-id', reviewerId)
+      .send({ expiresInSeconds: 3600 });
+    expect(missingPolicy.status).toBe(403);
+    expect(missingPolicy.body.error).toBe('translation_repository_action_not_allowlisted');
+    const prematureQueue = await request(app)
+      .post(`/api/v1/translation-change-sets/${changeSetId}/queue-sync`)
+      .set('x-test-actor-id', proposerId)
+      .send({});
+    expect(prematureQueue.status).toBe(409);
+    expect(prematureQueue.body.error).toBe('translation_repository_approval_required');
+
+    const target = await request(app)
+      .post('/api/v1/action-targets')
+      .set('x-test-actor-id', proposerId)
+      .send({
+        key: `translation-repository-${randomUUID()}`,
+        action: 'repository.open_translation_pr',
+        executorRef: 'github-app.casio-plus-final',
+      });
+    expect(target.status, JSON.stringify(target.body)).toBe(201);
+    const policy = await request(app)
+      .post('/api/v1/action-policies')
+      .set('x-test-actor-id', proposerId)
+      .send({
+        flowId: run.flowId,
+        flowVersionId: run.flowVersionId,
+        targetId: target.body.target.id,
+        action: 'repository.open_translation_pr',
+        riskClass: 'high',
+      });
+    expect(policy.status, JSON.stringify(policy.body)).toBe(201);
+    const meter = await request(app)
+      .post('/api/v1/runtime-meter-bindings')
+      .set('x-test-actor-id', proposerId)
+      .send({
+        pricingVersionId,
+        runtime: 'openclaw',
+        operation: 'action.repository.open_translation_pr',
+        resourceKey: 'repository.open_translation_pr',
+        currency: 'USD',
+        payer: 'casioplus',
+        directUnitCost: '0.001000000000',
+        inputTokenUnitCost: '0',
+        outputTokenUnitCost: '0',
+        allocatedSharedCost: '0.00010000',
+        billableMultiplier: '1.200000',
+      });
+    expect(meter.status, JSON.stringify(meter.body)).toBe(201);
+
+    const approvalRequested = await request(app)
+      .post(`/api/v1/translation-change-sets/${changeSetId}/request-approval`)
+      .set('x-test-actor-id', reviewerId)
+      .send({ expiresInSeconds: 3600 });
+    expect(approvalRequested.status, JSON.stringify(approvalRequested.body)).toBe(201);
+    expect(approvalRequested.body.approval).toMatchObject({
+      action: 'repository.open_translation_pr',
+      riskClass: 'high',
+      status: 'pending',
+    });
+    const approvalId = approvalRequested.body.approval.id as string;
+    const selfApproval = await request(app)
+      .post(`/api/v1/action-approvals/${approvalId}/decisions`)
+      .set('x-test-actor-id', reviewerId)
+      .send({ decision: 'approved', reason: 'Must be rejected as self approval.' });
+    expect(selfApproval.status).toBe(403);
+    expect(selfApproval.body.error).toBe('translation_repository_self_approval_forbidden');
+
+    const approved = await request(app)
+      .post(`/api/v1/action-approvals/${approvalId}/decisions`)
+      .set('x-test-actor-id', proposerId)
+      .send({ decision: 'approved', reason: 'Approved after independent translation review.' });
+    expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+    expect(approved.body.approval.status).toBe('approved');
+
+    const queued = await request(app)
+      .post(`/api/v1/translation-change-sets/${changeSetId}/queue-sync`)
+      .set('x-test-actor-id', proposerId)
+      .send({});
+    expect(queued.status, JSON.stringify(queued.body)).toBe(202);
+    const outboxId = queued.body.dispatch.id as string;
+    const outbox = await pool.query<{
+      destination: string;
+      operation: string;
+      payload: Record<string, unknown>;
+      meteringSnapshot: Record<string, unknown>;
+    }>(
+      `SELECT destination, operation, payload, metering_snapshot AS "meteringSnapshot"
+         FROM integration_outbox WHERE id = $1`,
+      [outboxId],
+    );
+    expect(outbox.rows[0]).toMatchObject({
+      destination: 'openclaw',
+      operation: 'action.repository.open_translation_pr',
+      payload: {
+        changeSetId,
+        approvalId,
+        repositoryFullName: 'hadiranweb/casio-plus-final',
+        baseRef: 'main',
+        sourceLocale: 'en',
+        targetLocale: 'fa',
+        catalogPath: 'packages/i18n/messages/fa.json',
+      },
+      meteringSnapshot: {
+        runtime: 'openclaw',
+        operation: 'action.repository.open_translation_pr',
+      },
+    });
+    await pool.query(
+      `UPDATE integration_outbox SET status = 'in_progress', attempts = attempts + 1 WHERE id = $1`,
+      [outboxId],
+    );
+    const acknowledged = await request(app)
+      .post(`/internal/v1/outbox/${outboxId}/result`)
+      .set('x-casioplus-dispatcher-secret', dispatcherSecret)
+      .send({
+        status: 'dispatched',
+        adapterResult: {
+          status: 'succeeded',
+          executionId: 'pull-request:17',
+          runtime: 'openclaw',
+          latencyMs: 320,
+          output: {
+            changeSetId,
+            repositoryFullName: 'hadiranweb/casio-plus-final',
+            branchRef: `casioplus/translation/${changeSetId}`,
+            pullRequestNumber: 17,
+            pullRequestUrl: 'https://github.com/hadiranweb/casio-plus-final/pull/17',
+            pullRequestHeadSha: 'c'.repeat(40),
+          },
+        },
+      });
+    expect(acknowledged.status, JSON.stringify(acknowledged.body)).toBe(200);
+    const synchronized = await pool.query<{
+      status: string;
+      pullRequestNumber: number;
+      pullRequestUrl: string;
+    }>(
+      `SELECT status, pull_request_number AS "pullRequestNumber",
+              pull_request_url AS "pullRequestUrl"
+         FROM translation_change_sets WHERE id = $1`,
+      [changeSetId],
+    );
+    expect(synchronized.rows[0]).toEqual({
+      status: 'pr_opened',
+      pullRequestNumber: 17,
+      pullRequestUrl: 'https://github.com/hadiranweb/casio-plus-final/pull/17',
+    });
+
+    const deliveryId = randomUUID();
+    const webhookBody = JSON.stringify({
+      externalTenantRef: 'hadiranweb',
+      externalWorkspaceRef: 'casio-plus-final',
+      operation: 'repository.translation_pull_request_event',
+      idempotencyKey: `github-delivery:${deliveryId}`,
+      payload: {
+        action: 'closed',
+        changeSetId,
+        repositoryFullName: 'hadiranweb/casio-plus-final',
+        baseRef: 'main',
+        branchRef: `casioplus/translation/${changeSetId}`,
+        pullRequestNumber: 17,
+        pullRequestUrl: 'https://github.com/hadiranweb/casio-plus-final/pull/17',
+        pullRequestHeadSha: 'c'.repeat(40),
+        merged: true,
+      },
+    });
+    const merged = await request(app)
+      .post('/api/v1/integrations/events')
+      .set(signedGithubIntegrationHeaders(webhookBody, deliveryId))
+      .send(webhookBody);
+    expect(merged.status, JSON.stringify(merged.body)).toBe(200);
+    expect(merged.body).toMatchObject({
+      status: 'completed',
+      completed: true,
+      repositoryResult: { changeSetId, status: 'merged' },
+    });
+    const replayedWebhook = await request(app)
+      .post('/api/v1/integrations/events')
+      .set(signedGithubIntegrationHeaders(webhookBody, deliveryId))
+      .send(webhookBody);
+    expect(replayedWebhook.status).toBe(409);
+    expect(replayedWebhook.body.error).toBe('integration_nonce_replayed');
+    const mergedChangeSet = await pool.query<{ status: string; mergedAt: Date | null }>(
+      `SELECT status, merged_at AS "mergedAt" FROM translation_change_sets WHERE id = $1`,
+      [changeSetId],
+    );
+    expect(mergedChangeSet.rows[0]?.status).toBe('merged');
+    expect(mergedChangeSet.rows[0]?.mergedAt).toBeInstanceOf(Date);
+
+    const execution = await pool.query<{ status: string; executorRef: string }>(
+      `SELECT status, executor_ref AS "executorRef"
+         FROM action_executions WHERE approval_id = $1`,
+      [approvalId],
+    );
+    expect(execution.rows[0]).toEqual({
+      status: 'succeeded',
+      executorRef: 'github-app.casio-plus-final',
+    });
+    const usage = await pool.query<{ operation: string; billableAmount: string }>(
+      `SELECT operation, billable_amount AS "billableAmount"
+         FROM usage_events WHERE process_run_id = $1 AND operation = $2`,
+      [run.processRunId, 'action.repository.open_translation_pr'],
+    );
+    expect(usage.rows[0]?.operation).toBe('action.repository.open_translation_pr');
+    expect(Number(usage.rows[0]?.billableAmount)).toBeGreaterThan(0);
   });
 });

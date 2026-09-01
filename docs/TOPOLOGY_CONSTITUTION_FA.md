@@ -38,14 +38,17 @@ casio-plus/
 │       └── app/                     # root، routes و entryهای Remix
 ├── services/
 │   ├── core-api/                   # تنها API writer و مرز canonical دامنه
+│   ├── integration-dispatcher/     # مصرف‌کنندهٔ outbox از API داخلی Core؛ بدون DB access
 │   ├── native-diagnosis-worker/    # runtime تخصصی بدون DB access
 │   ├── n8n-adapter/                # orchestrator-only contract
 │   ├── open-webui-adapter/         # interaction/model-plane contract
-│   └── openclaw-adapter/           # محدود به action allowlist و approval
+│   ├── openclaw-adapter/           # محدود به action allowlist و approval
+│   └── github-app-adapter/         # PR ترجمهٔ محدود و webhook امضاشده؛ بدون DB/merge
 ├── packages/
 │   ├── contracts/                  # schema و قرارداد transport مشترک
 │   ├── domain/                     # type و invariantهای دامنه، بدون I/O
 │   ├── knowledge-model/            # taxonomy و governance حافظه
+│   ├── i18n/                       # catalogهای Git-owned، compiler و formatter مشترک en/fa
 │   └── ui/                         # primitiveهای presentation-only مشترک
 ├── migrations/                     # SQL ordered و checksum-verified برای PostgreSQL
 ├── deployment/                     # Dockerfile و release manifest هر unit
@@ -79,25 +82,29 @@ services/core-api ─────────────> contracts + domain + 
                               ├── Memory Broker (Core-owned boundary)
                               ├── Integration Gateway (Core-owned boundary)
                               └── FinOps/Metering (Core-owned boundary)
-services/native-worker ────────> contracts + domain      (بدون PostgreSQL و Redis credential)
-services/n8n-adapter ──────────> contracts               (orchestrator-only)
-services/open-webui-adapter ──> contracts               (typed interaction/context)
-services/openclaw-adapter ────> contracts               (allowlist/approval/idempotency)
+services/integration-dispatcher ─> Core internal API only (بدون PostgreSQL credential)
+services/native-worker ──────────> contracts + domain      (بدون PostgreSQL و Redis credential)
+services/n8n-adapter ────────────> contracts               (orchestrator-only)
+services/open-webui-adapter ─────> contracts               (typed interaction/context)
+services/openclaw-adapter ───────> contracts               (allowlist/approval/idempotency)
+services/github-app-adapter ─────> contracts + GitHub API  (فقط branch/catalog/PR؛ بدون DB/merge)
 ```
 
 `packages/domain` و `packages/knowledge-model` نباید به Express، `pg`، Drizzle، Redis، browser API یا یک adapter خارجی import داشته باشند. `packages/ui` فقط presentation primitive، token و accessibility helper است و نباید route، session، tenant policy، Core client یا persistence داشته باشد. `packages/contracts` باید transport-neutral بماند و نباید session secret، database client یا runtime credential را در schema خود قرار دهد. Console و Forge نباید مستقیماً به database، migration، runtime داخلی یا secret دسترسی داشته باشند.
 
 ## مرز مالکیت داده و write path
 
-| داده                                              | مالک canonical                 | نویسندهٔ مجاز                                           | مصرف‌کنندگان                             |
-| ------------------------------------------------- | ------------------------------ | ------------------------------------------------------- | ---------------------------------------- |
-| identity، organization، workspace، membership     | Core/PostgreSQL                | Core/API و identity subsystem آینده                     | Console، Forge، audit                    |
-| Work، Flow، FlowVersion، ProcessRun، RuntimeEvent | Core/PostgreSQL                | Core/API                                                | Console، Forge، runtime با callback مجاز |
-| Artifact metadata و بعداً object payload          | Core + Object Storage boundary | Core/API یا artifact service تحت authorization Core     | Console با signed download/proxy         |
-| SemanticRecord و KnowledgeClaim                   | Core/PostgreSQL                | Core/API پس از provenance check                         | review و governed retrieval              |
-| KnowledgeReview و KnowledgePromotion              | Core/PostgreSQL                | actor مجاز و policy Core                                | retrieval و audit                        |
-| اجرای runtime                                     | Worker خارج از DB              | Core dispatch؛ Worker فقط نتیجهٔ signed را بازمی‌گرداند | Core و Console/Forge از طریق Core        |
-| action side-effect                                | سرویس مقصد از طریق adapter     | OpenClaw adapter پس از approval و allowlist             | Core audit و actor مجاز                  |
+| داده                                              | مالک canonical                 | نویسندهٔ مجاز                                             | مصرف‌کنندگان                             |
+| ------------------------------------------------- | ------------------------------ | --------------------------------------------------------- | ---------------------------------------- |
+| identity، organization، workspace، membership     | Core/PostgreSQL                | Core/API و identity subsystem آینده                       | Console، Forge، audit                    |
+| Work، Flow، FlowVersion، ProcessRun، RuntimeEvent | Core/PostgreSQL                | Core/API                                                  | Console، Forge، runtime با callback مجاز |
+| Artifact metadata و بعداً object payload          | Core + Object Storage boundary | Core/API یا artifact service تحت authorization Core       | Console با signed download/proxy         |
+| SemanticRecord و KnowledgeClaim                   | Core/PostgreSQL                | Core/API پس از provenance check                           | review و governed retrieval              |
+| KnowledgeReview و KnowledgePromotion              | Core/PostgreSQL                | actor مجاز و policy Core                                  | retrieval و audit                        |
+| اجرای runtime                                     | Worker خارج از DB              | Core dispatch؛ Worker فقط نتیجهٔ signed را بازمی‌گرداند   | Core و Console/Forge از طریق Core        |
+| action side-effect                                | سرویس مقصد از طریق adapter     | OpenClaw adapter پس از approval و allowlist               | Core audit و actor مجاز                  |
+| Translation Change Set و وضعیت PR                 | Core/PostgreSQL                | Core/API؛ webhook GitHub فقط از Integration Gateway       | Forge، audit و actor مجاز                |
+| branch/commit/Pull Request ترجمه                  | GitHub repository              | GitHub App adapter پس از approval؛ هرگز main/merge مستقیم | CI و بازبین انسانی                       |
 
 هیچ adapter یا Worker حق ندارد SQL، migration یا database credential داشته باشد. Runtime output باید از مسیر Core به event، run state، artifact و memory governance تبدیل شود؛ ثبت مستقیم و بی‌واسطهٔ runtime در PostgreSQL ممنوع است.
 

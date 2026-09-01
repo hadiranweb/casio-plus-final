@@ -1,4 +1,5 @@
 import { once } from 'node:events';
+import { createServer } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { createOpenClawAdapterServer, type OpenClawExecutor } from './server.js';
 
@@ -38,7 +39,11 @@ function headers(overrides: Record<string, string> = {}) {
   };
 }
 
-async function withServer(executor: OpenClawExecutor, callback: (url: string) => Promise<void>) {
+async function withServer(
+  executor: OpenClawExecutor,
+  callback: (url: string) => Promise<void>,
+  githubAppAdapterUrl?: string,
+) {
   const server = createOpenClawAdapterServer(
     {
       port: 8084,
@@ -47,6 +52,7 @@ async function withServer(executor: OpenClawExecutor, callback: (url: string) =>
       executorTargets: {
         'operations.primary': { channel: 'slack', target: 'channel:C123', account: 'ops' },
       },
+      githubAppAdapterUrl,
       timeoutMs: 5_000,
       maxBodyBytes: 100_000,
     },
@@ -142,6 +148,102 @@ describe('OpenClaw adapter HTTP boundary', () => {
       });
       expect(response.status).toBe(409);
       expect(executor).not.toHaveBeenCalled();
+    });
+  });
+
+  it('proxies only the approved repository action to the internal GitHub App adapter', async () => {
+    const executor = vi.fn<OpenClawExecutor>();
+    const forwarded: Array<{ headers: Headers; body: unknown }> = [];
+    const githubAdapter = createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      forwarded.push({
+        headers: new Headers(request.headers as Record<string, string>),
+        body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown,
+      });
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify({
+          status: 'succeeded',
+          executionId: 'pull-request:11',
+          output: {
+            changeSetId: '11111111-1111-4111-8111-111111111111',
+            repositoryFullName: 'hadiranweb/casio-plus-final',
+            branchRef: 'casioplus/translation/11111111-1111-4111-8111-111111111111',
+            pullRequestNumber: 11,
+            pullRequestUrl: 'https://github.com/hadiranweb/casio-plus-final/pull/11',
+            pullRequestHeadSha: 'b'.repeat(40),
+          },
+          runtime: 'openclaw',
+          latencyMs: 3,
+        }),
+      );
+    });
+    githubAdapter.listen(0, '127.0.0.1');
+    await once(githubAdapter, 'listening');
+    const address = githubAdapter.address();
+    if (!address || typeof address === 'string') throw new Error('server_address_missing');
+    const githubUrl = `http://127.0.0.1:${address.port}`;
+    const idempotencyKey = 'translation-sync:11111111-1111-4111-8111-111111111111';
+    try {
+      await withServer(
+        executor,
+        async (url) => {
+          const response = await fetch(`${url}/dispatch`, {
+            method: 'POST',
+            headers: headers({
+              'x-casioplus-operation': 'action.repository.open_translation_pr',
+              'x-casioplus-idempotency-key': idempotencyKey,
+            }),
+            body: JSON.stringify({
+              operation: 'action.repository.open_translation_pr',
+              payload: {
+                action: 'repository.open_translation_pr',
+                executorRef: 'github-app.casio-plus-final',
+                changeSetId: '11111111-1111-4111-8111-111111111111',
+                approvalId: '22222222-2222-4222-8222-222222222222',
+                processRunId: '33333333-3333-4333-8333-333333333333',
+                repositoryFullName: 'hadiranweb/casio-plus-final',
+                baseRef: 'main',
+                baseCommitSha: 'a'.repeat(40),
+                catalogHash: 'c'.repeat(64),
+                sourceLocale: 'en',
+                targetLocale: 'fa',
+                branchRef: 'casioplus/translation/11111111-1111-4111-8111-111111111111',
+                catalogPath: 'packages/i18n/messages/fa.json',
+                sourceCatalogPath: 'packages/i18n/messages/en.json',
+                items: [
+                  {
+                    messageKey: 'shared_greeting',
+                    sourceText: 'Hello {name}',
+                    currentTargetText: 'سلام {name}',
+                    reviewedText: 'درود {name}',
+                    sourceHash: 'd'.repeat(64),
+                    currentTargetHash: 'e'.repeat(64),
+                    placeholderSignature: ['name'],
+                  },
+                ],
+                idempotencyKey,
+                expiresAt: new Date(Date.now() + 60_000).toISOString(),
+              },
+            }),
+          });
+          expect(response.status).toBe(200);
+          expect(await response.json()).toMatchObject({ status: 'succeeded' });
+        },
+        githubUrl,
+      );
+    } finally {
+      githubAdapter.close();
+      await once(githubAdapter, 'close');
+    }
+    expect(executor).not.toHaveBeenCalled();
+    expect(forwarded).toHaveLength(1);
+    expect(forwarded[0]!.headers.get('x-casioplus-operation')).toBe(
+      'action.repository.open_translation_pr',
+    );
+    expect(forwarded[0]!.body).toMatchObject({
+      operation: 'action.repository.open_translation_pr',
     });
   });
 });

@@ -124,7 +124,7 @@ export const acceptInvitationSchema = z.object({
 export const integrationIngressSchema = z.object({
   externalTenantRef: z.string().trim().min(1).max(300),
   externalWorkspaceRef: z.string().trim().min(1).max(300),
-  operation: z.string().regex(/^(n8n|model|action)\.[a-z][a-z0-9_.-]{1,120}$/),
+  operation: z.string().regex(/^(n8n|model|action|repository)\.[a-z][a-z0-9_.-]{1,120}$/),
   idempotencyKey: z.string().trim().min(16).max(200),
   payload: z.record(z.string(), z.unknown()).default({}),
 });
@@ -178,6 +178,8 @@ export const openWebUiRuntimeDefinitionSchema = z.object({
   maxTokens: z.number().int().min(1).max(131_072).optional(),
 });
 
+export const repositoryActionSchema = z.enum(['send_message', 'repository.open_translation_pr']);
+
 export const openClawRuntimeDefinitionSchema = z.object({
   action: z.literal('send_message'),
   targetKey: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
@@ -185,7 +187,7 @@ export const openClawRuntimeDefinitionSchema = z.object({
 
 export const createActionTargetSchema = organizationContextSchema.extend({
   key: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
-  action: z.literal('send_message'),
+  action: repositoryActionSchema,
   executorRef: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
 });
 
@@ -193,7 +195,7 @@ export const createActionPolicySchema = organizationContextSchema.extend({
   flowId: identifierSchema,
   flowVersionId: identifierSchema,
   targetId: identifierSchema,
-  action: z.literal('send_message'),
+  action: repositoryActionSchema,
   riskClass: z.enum(['low', 'medium', 'high']),
   validFrom: z.string().datetime().optional(),
   validUntil: z.string().datetime().nullable().optional(),
@@ -232,8 +234,12 @@ const translationProvenanceSchema = z
     scheduleId: identifierSchema.optional(),
   })
   .strict();
+const translationMessageKeySchema = z.string().regex(/^[a-z][a-z0-9_]{2,199}$/);
+const translationCommitShaSchema = z.string().regex(/^[a-f0-9]{40}$/);
+const translationHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
 export const translationChangeSetItemInputSchema = z.object({
-  messageKey: z.string().regex(/^[a-z][a-z0-9_]{2,199}$/),
+  messageKey: translationMessageKeySchema,
   sourceText: translationTextSchema,
   currentTargetText: translationTextSchema.nullable().optional(),
   proposedText: translationTextSchema,
@@ -249,8 +255,8 @@ export const createTranslationChangeSetSchema = organizationContextSchema
     processRunId: identifierSchema,
     repositoryFullName: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
     baseRef: z.string().regex(/^[A-Za-z0-9._/-]{1,200}$/),
-    baseCommitSha: z.string().regex(/^[a-f0-9]{40}$/),
-    catalogHash: z.string().regex(/^[a-f0-9]{64}$/),
+    baseCommitSha: translationCommitShaSchema,
+    catalogHash: translationHashSchema,
     sourceLocale: translationLocaleSchema,
     targetLocale: translationLocaleSchema,
     idempotencyKey: z.string().trim().min(16).max(200),
@@ -295,6 +301,73 @@ export const reviewTranslationChangeSetItemSchema = organizationContextSchema
 export const completeTranslationChangeSetReviewSchema = organizationContextSchema.extend({
   changeSetId: identifierSchema,
 });
+
+export const requestTranslationRepositoryApprovalSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+  expiresInSeconds: z.number().int().min(60).max(86_400),
+});
+
+export const queueTranslationRepositorySyncSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+});
+
+export const translationRepositoryItemSchema = z
+  .object({
+    messageKey: translationMessageKeySchema,
+    sourceText: translationTextSchema,
+    currentTargetText: translationTextSchema.nullable(),
+    reviewedText: translationTextSchema,
+    sourceHash: translationHashSchema,
+    currentTargetHash: translationHashSchema.nullable(),
+    placeholderSignature: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)).max(50),
+  })
+  .strict();
+
+export const repositoryOpenTranslationPrPayloadSchema = z
+  .object({
+    action: z.literal('repository.open_translation_pr'),
+    executorRef: z.literal('github-app.casio-plus-final'),
+    changeSetId: identifierSchema,
+    approvalId: identifierSchema,
+    processRunId: identifierSchema,
+    repositoryFullName: z.literal('hadiranweb/casio-plus-final'),
+    baseRef: z.literal('main'),
+    baseCommitSha: translationCommitShaSchema,
+    catalogHash: translationHashSchema,
+    sourceLocale: z.literal('en'),
+    targetLocale: z.literal('fa'),
+    branchRef: z.string().regex(/^casioplus\/translation\/[a-f0-9-]{36}$/),
+    catalogPath: z.literal('packages/i18n/messages/fa.json'),
+    sourceCatalogPath: z.literal('packages/i18n/messages/en.json'),
+    items: z.array(translationRepositoryItemSchema).min(1).max(500),
+    idempotencyKey: z.string().trim().min(16).max(200),
+    expiresAt: z.string().datetime(),
+  })
+  .strict();
+
+export const translationRepositoryWebhookEventSchema = z
+  .object({
+    action: z.enum(['opened', 'reopened', 'synchronize', 'closed']),
+    changeSetId: identifierSchema,
+    repositoryFullName: z.literal('hadiranweb/casio-plus-final'),
+    baseRef: z.literal('main'),
+    branchRef: z.string().regex(/^casioplus\/translation\/[a-f0-9-]{36}$/),
+    pullRequestNumber: z.number().int().positive(),
+    pullRequestUrl: z
+      .string()
+      .regex(/^https:\/\/github\.com\/hadiranweb\/casio-plus-final\/pull\/[0-9]+$/),
+    pullRequestHeadSha: translationCommitShaSchema,
+    merged: z.boolean(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.changeSetId !== value.branchRef.slice('casioplus/translation/'.length)) {
+      context.addIssue({ code: 'custom', message: 'translation_branch_change_set_mismatch' });
+    }
+    if (value.merged && value.action !== 'closed') {
+      context.addIssue({ code: 'custom', message: 'translation_merged_event_invalid' });
+    }
+  });
 
 export const runtimeEventSchema = organizationContextSchema.extend({
   processRunId: identifierSchema.nullable(),
@@ -348,7 +421,11 @@ export const createPricingAssumptionSchema = organizationContextSchema.extend({
 
 export const createRuntimeMeterBindingSchema = organizationContextSchema.extend({
   runtime: z.enum(['open-webui', 'openclaw']),
-  operation: z.enum(['model.chat.complete', 'action.send_message']),
+  operation: z.enum([
+    'model.chat.complete',
+    'action.send_message',
+    'action.repository.open_translation_pr',
+  ]),
   resourceKey: z.string().trim().min(1).max(200),
   pricingVersionId: identifierSchema,
   currency: z.string().regex(/^[A-Z]{3}$/),

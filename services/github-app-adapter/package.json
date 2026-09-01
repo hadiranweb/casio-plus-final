@@ -1,9 +1,9 @@
 {
-  "name": "@casioplus/openclaw-adapter",
+  "name": "@casioplus/github-app-adapter",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Allowlisted and approval-gated action boundary for OpenClaw",
+  "description": "Allowlisted GitHub App boundary for translation pull requests and signed webhooks",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -122,6 +122,7 @@ jobs:
           docker build --file deployment/Dockerfile.n8n-adapter --tag casioplus-n8n-adapter-ci .
           docker build --file deployment/Dockerfile.open-webui-adapter --tag casioplus-open-webui-adapter-ci .
           docker build --file deployment/Dockerfile.openclaw-adapter --tag casioplus-openclaw-adapter-ci .
+          docker build --file deployment/Dockerfile.github-app-adapter --tag casioplus-github-app-adapter-ci .
           docker build --file deployment/Dockerfile.console --tag casioplus-console-ci .
           docker build --file deployment/Dockerfile.forge --tag casioplus-forge-ci .
 

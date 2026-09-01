@@ -36,6 +36,7 @@ import { assertCsrfForCookieRequest } from './auth.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
 import { mountTranslationChangeSetRoutes } from './translation-change-sets.js';
+import { mountTranslationRepositorySyncRoutes } from './translation-repository-sync.js';
 import { retrieveGovernedMemory, retrieveGovernedMemoryGraph } from './memory-broker.js';
 import {
   mountIntegrationGateway,
@@ -145,7 +146,8 @@ type RuntimeMeteringSnapshot = {
   bindingId: string;
   pricingVersionId: string;
   runtime: 'open-webui' | 'openclaw';
-  operation: 'model.chat.complete' | 'action.send_message';
+  operation:
+    'model.chat.complete' | 'action.send_message' | 'action.repository.open_translation_pr';
   resourceKey: string;
   currency: string;
   payer: 'casioplus' | 'customer' | 'external_product' | 'shared';
@@ -279,13 +281,16 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     }
   });
 
-  mountTranslationChangeSetRoutes(app, {
+  const translationRouteDependencies = {
     pool,
     resolveTenantContext,
-    requireRoles: (context, roles) => requireMembership(pool, context, roles, enforceMembership),
-    error: (statusCode, code) => new HttpError(statusCode, code),
+    requireRoles: (context: TenantContext, roles: OrganizationRole[]) =>
+      requireMembership(pool, context, roles, enforceMembership),
+    error: (statusCode: number, code: string) => new HttpError(statusCode, code),
     requestId,
-  });
+  };
+  mountTranslationChangeSetRoutes(app, translationRouteDependencies);
+  mountTranslationRepositorySyncRoutes(app, translationRouteDependencies);
 
   app.get('/healthz', async (_req, res, next) => {
     try {
@@ -742,7 +747,11 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
                ON at.organization_id = f.organization_id AND at.workspace_id = f.workspace_id
               AND at.id = $5 AND at.action = $6 AND at.status = 'active'
             WHERE f.id = $3 AND f.organization_id = $1 AND f.workspace_id = $2
-              AND fv.runtime_binding = 'openclaw'
+              AND (
+                ($6 = 'send_message' AND fv.runtime_binding = 'openclaw')
+                OR
+                ($6 = 'repository.open_translation_pr' AND fv.runtime_binding = 'open-webui')
+              )
            RETURNING id, organization_id AS "organizationId", workspace_id AS "workspaceId",
                      flow_id AS "flowId", flow_version_id AS "flowVersionId",
                      target_id AS "targetId", action, risk_class AS "riskClass",
@@ -967,8 +976,15 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       await requireMembership(pool, context, reviewerRoles, enforceMembership);
       const input = decideActionApprovalSchema.parse({ ...req.body, ...context });
       const decided = await withTransaction(pool, async (client) => {
-        const approval = await client.query<{ id: string; status: string; expiresAt: Date }>(
-          `SELECT id, status, expires_at AS "expiresAt"
+        const approval = await client.query<{
+          id: string;
+          status: string;
+          action: string;
+          requestedByActorId: string;
+          expiresAt: Date;
+        }>(
+          `SELECT id, status, action, requested_by_actor_id AS "requestedByActorId",
+                  expires_at AS "expiresAt"
              FROM action_approval_requests
             WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
             FOR UPDATE`,
@@ -977,6 +993,12 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
         const row = approval.rows[0];
         if (!row) throw new HttpError(404, 'action_approval_not_found');
         if (row.status !== 'pending') throw new HttpError(409, 'action_approval_already_decided');
+        if (
+          row.action === 'repository.open_translation_pr' &&
+          row.requestedByActorId === input.actorId
+        ) {
+          throw new HttpError(403, 'translation_repository_self_approval_forbidden');
+        }
         if (row.expiresAt.getTime() <= Date.now()) {
           await client.query(
             `UPDATE action_approval_requests
@@ -995,6 +1017,24 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
                       decided_at AS "decidedAt"`,
           [input.decision, input.actorId, input.reason, row.id],
         );
+        if (row.action === 'repository.open_translation_pr') {
+          const linked = await client.query<{ id: string }>(
+            `UPDATE translation_change_sets
+                SET status = $1, updated_at = now()
+              WHERE approval_id = $2 AND organization_id = $3 AND workspace_id = $4
+                AND status = 'pending_approval'
+              RETURNING id`,
+            [
+              input.decision === 'approved' ? 'approved' : 'rejected',
+              row.id,
+              input.organizationId,
+              input.workspaceId,
+            ],
+          );
+          if (linked.rowCount !== 1) {
+            throw new HttpError(409, 'translation_approval_link_invalid');
+          }
+        }
         await client.query(
           `INSERT INTO audit_events
               (organization_id, event_type, actor_id, subject_type, subject_id, metadata)
@@ -1265,7 +1305,7 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
                 (organization_id, workspace_id, process_run_id, approval_id, outbox_id,
                  action, executor_ref)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (process_run_id) DO NOTHING`,
+             ON CONFLICT (approval_id) DO NOTHING`,
             [
               runRow.organizationId,
               runRow.workspaceId,

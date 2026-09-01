@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 import { integrationIngressSchema } from '../../../packages/contracts/src/index.js';
 import { withTransaction } from './db.js';
+import { applyTranslationRepositoryWebhookEvent } from './translation-repository-sync.js';
 
 export type IntegrationSecretMap = Readonly<Record<string, string>>;
 
@@ -44,7 +45,11 @@ const meteringSnapshotSchema = z.object({
   bindingId: z.string().uuid(),
   pricingVersionId: z.string().uuid(),
   runtime: z.enum(['open-webui', 'openclaw']),
-  operation: z.enum(['model.chat.complete', 'action.send_message']),
+  operation: z.enum([
+    'model.chat.complete',
+    'action.send_message',
+    'action.repository.open_translation_pr',
+  ]),
   resourceKey: z.string().min(1).max(200),
   currency: z.string().regex(/^[A-Z]{3}$/),
   payer: z.enum(['casioplus', 'customer', 'external_product', 'shared']),
@@ -54,6 +59,19 @@ const meteringSnapshotSchema = z.object({
   allocatedSharedCost: z.string().regex(/^\d+(\.\d{1,8})?$/),
   billableMultiplier: z.string().regex(/^\d+(\.\d{1,6})?$/),
 });
+
+const translationPullRequestResultSchema = z
+  .object({
+    changeSetId: z.string().uuid(),
+    repositoryFullName: z.literal('hadiranweb/casio-plus-final'),
+    branchRef: z.string().regex(/^casioplus\/translation\/[a-f0-9-]{36}$/),
+    pullRequestNumber: z.number().int().positive(),
+    pullRequestUrl: z
+      .string()
+      .regex(/^https:\/\/github\.com\/hadiranweb\/casio-plus-final\/pull\/[0-9]+$/),
+    pullRequestHeadSha: z.string().regex(/^[a-f0-9]{40}$/),
+  })
+  .strict();
 
 const outboxResultSchema = z.object({
   status: z.enum(['dispatched', 'retry', 'dead_letter']),
@@ -159,7 +177,11 @@ export function mountIntegrationGateway(
       }
       const input = integrationIngressSchema.parse(parsedBody);
       const requestHash = createHash('sha256').update(rawBody).digest('hex');
-      const destination = destinationForOperation(input.operation);
+      const isTranslationRepositoryEvent =
+        input.operation === 'repository.translation_pull_request_event';
+      const destination = isTranslationRepositoryEvent
+        ? null
+        : destinationForOperation(input.operation);
       const accepted = await withTransaction(pool, async (client) => {
         const nonceInsert = await client.query(
           `INSERT INTO integration_nonces
@@ -230,6 +252,37 @@ export function mountIntegrationGateway(
           ],
         );
         const integrationRequest = inserted.rows[0]!;
+        if (isTranslationRepositoryEvent) {
+          let repositoryResult: Awaited<ReturnType<typeof applyTranslationRepositoryWebhookEvent>>;
+          try {
+            repositoryResult = await applyTranslationRepositoryWebhookEvent(
+              client,
+              {
+                organizationId: resolved.organizationId,
+                workspaceId: resolved.workspaceId,
+                deliveryId: nonce,
+              },
+              input.payload,
+            );
+          } catch (caught) {
+            const code = caught instanceof Error ? caught.message : 'translation_webhook_invalid';
+            const statusCode = code === 'translation_change_set_not_found' ? 404 : 409;
+            throw new IntegrationGatewayError(statusCode, code);
+          }
+          await client.query(
+            `UPDATE integration_requests
+                SET status = 'completed', completed_at = now()
+              WHERE id = $1`,
+            [integrationRequest.id],
+          );
+          return {
+            requestId: integrationRequest.id,
+            status: 'completed',
+            idempotent: false,
+            completed: true,
+            repositoryResult,
+          };
+        }
         await client.query(
           `INSERT INTO integration_outbox
               (integration_request_id, organization_id, workspace_id, destination,
@@ -261,7 +314,7 @@ export function mountIntegrationGateway(
           idempotent: false,
         };
       });
-      response.status(accepted.idempotent ? 200 : 202).json(accepted);
+      response.status(accepted.idempotent || accepted.completed ? 200 : 202).json(accepted);
     } catch (error) {
       next(error);
     }
@@ -512,6 +565,83 @@ export function mountIntegrationGateway(
                 request.params.outboxId,
               ],
             );
+          }
+          if (row.operation === 'action.repository.open_translation_pr') {
+            if (adapterSucceeded) {
+              const pullRequest = translationPullRequestResultSchema.parse(
+                input.adapterResult?.output,
+              );
+              const changed = await client.query<{ id: string }>(
+                `UPDATE translation_change_sets
+                    SET status = CASE
+                          WHEN status IN ('merged', 'failed') THEN status
+                          ELSE 'pr_opened'
+                        END,
+                        repository_branch_ref = $1,
+                        pull_request_number = $2, pull_request_url = $3,
+                        pull_request_head_sha = $4,
+                        pull_request_opened_at = COALESCE(pull_request_opened_at, now()),
+                        failure_code = CASE WHEN status = 'failed' THEN failure_code ELSE NULL END,
+                        updated_at = now()
+                  WHERE id = $5 AND outbox_id = $6
+                    AND repository_full_name = $7
+                    AND status IN ('sync_queued', 'pr_opened', 'merged', 'failed')
+                  RETURNING id`,
+                [
+                  pullRequest.branchRef,
+                  pullRequest.pullRequestNumber,
+                  pullRequest.pullRequestUrl,
+                  pullRequest.pullRequestHeadSha,
+                  pullRequest.changeSetId,
+                  request.params.outboxId,
+                  pullRequest.repositoryFullName,
+                ],
+              );
+              if (changed.rowCount !== 1) {
+                throw new IntegrationGatewayError(409, 'translation_pull_request_result_mismatch');
+              }
+              await client.query(
+                `INSERT INTO audit_events
+                    (organization_id, event_type, subject_type, subject_id, metadata)
+                 VALUES ($1, 'translation.repository_pr_opened',
+                         'translation_change_set', $2, $3)`,
+                [
+                  run.organizationId,
+                  pullRequest.changeSetId,
+                  {
+                    workspaceId: run.workspaceId,
+                    outboxId: request.params.outboxId,
+                    pullRequestNumber: pullRequest.pullRequestNumber,
+                    pullRequestHeadSha: pullRequest.pullRequestHeadSha,
+                  },
+                ],
+              );
+            } else {
+              const failed = await client.query<{ id: string }>(
+                `UPDATE translation_change_sets
+                    SET status = 'failed', failure_code = $1, updated_at = now()
+                  WHERE outbox_id = $2 AND status = 'sync_queued'
+                  RETURNING id`,
+                [errorCode, request.params.outboxId],
+              );
+              if (failed.rows[0]) {
+                await client.query(
+                  `INSERT INTO audit_events
+                      (organization_id, event_type, subject_type, subject_id, metadata)
+                   VALUES ($1, 'translation.repository_sync_failed',
+                           'translation_change_set', $2, $3)`,
+                  [
+                    run.organizationId,
+                    failed.rows[0].id,
+                    {
+                      workspaceId: run.workspaceId,
+                      outboxId: request.params.outboxId,
+                      errorCode,
+                    },
+                  ],
+                );
+              }
+            }
           }
           if (adapterSucceeded) {
             await client.query(

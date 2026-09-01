@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { repositoryOpenTranslationPrPayloadSchema } from '@casioplus/contracts';
 import { z } from 'zod';
 import {
   openClawActionRequestSchema,
@@ -14,6 +15,7 @@ const configurationSchema = z.object({
   gatewayUrl: z.string().url().optional(),
   gatewayToken: z.string().min(32).optional(),
   executorTargets: z.record(z.string(), z.custom<OpenClawExecutorTarget>()),
+  githubAppAdapterUrl: z.string().url().optional(),
   timeoutMs: z.number().int().min(1_000).max(600_000).default(60_000),
   maxBodyBytes: z.number().int().min(1_024).max(2_000_000).default(500_000),
 });
@@ -22,18 +24,26 @@ const dispatchHeadersSchema = z.object({
   secret: z.string().min(1),
   organizationId: z.string().uuid(),
   workspaceId: z.string().uuid(),
-  operation: z.literal('action.send_message'),
+  operation: z.enum(['action.send_message', 'action.repository.open_translation_pr']),
   idempotencyKey: z.string().min(16).max(200),
 });
 
-const dispatchBodySchema = z
-  .object({
-    operation: z.literal('action.send_message'),
-    payload: openClawActionRequestSchema.extend({
-      processRunId: z.string().uuid(),
-    }),
-  })
-  .strict();
+const dispatchBodySchema = z.discriminatedUnion('operation', [
+  z
+    .object({
+      operation: z.literal('action.send_message'),
+      payload: openClawActionRequestSchema.extend({
+        processRunId: z.string().uuid(),
+      }),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('action.repository.open_translation_pr'),
+      payload: repositoryOpenTranslationPrPayloadSchema,
+    })
+    .strict(),
+]);
 
 export type OpenClawAdapterConfiguration = z.infer<typeof configurationSchema>;
 export type OpenClawExecutor = (
@@ -125,6 +135,44 @@ export function createOpenClawAdapterServer(
         respondJson(response, 409, { error: 'openclaw_approval_expired', retryable: false });
         return;
       }
+      if (body.operation === 'action.repository.open_translation_pr') {
+        if (!configuration.githubAppAdapterUrl) {
+          respondJson(response, 503, {
+            error: 'github_app_adapter_not_configured',
+            retryable: true,
+          });
+          return;
+        }
+        const upstream = await fetch(
+          `${configuration.githubAppAdapterUrl.replace(/\/$/, '')}/dispatch`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-casioplus-adapter-secret': headers.secret,
+              'x-casioplus-organization-id': headers.organizationId,
+              'x-casioplus-workspace-id': headers.workspaceId,
+              'x-casioplus-operation': headers.operation,
+              'x-casioplus-idempotency-key': headers.idempotencyKey,
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(configuration.timeoutMs),
+          },
+        );
+        const upstreamText = await upstream.text();
+        let upstreamBody: unknown;
+        try {
+          upstreamBody = upstreamText ? (JSON.parse(upstreamText) as unknown) : {};
+        } catch {
+          respondJson(response, 502, {
+            error: 'github_app_adapter_response_invalid',
+            retryable: true,
+          });
+          return;
+        }
+        respondJson(response, upstream.status, upstreamBody);
+        return;
+      }
       const target = configuration.executorTargets[body.payload.executorRef];
       if (!target) {
         respondJson(response, 403, { error: 'openclaw_target_not_allowlisted', retryable: false });
@@ -179,6 +227,7 @@ if (process.env.NODE_ENV !== 'test') {
     executorTargets: parseOpenClawExecutorTargets(
       process.env.OPENCLAW_EXECUTOR_TARGETS_JSON ?? '{}',
     ),
+    githubAppAdapterUrl: process.env.GITHUB_APP_ADAPTER_URL,
     timeoutMs: Number(process.env.OPENCLAW_TIMEOUT_MS ?? 60_000),
     maxBodyBytes: Number(process.env.OPENCLAW_ADAPTER_MAX_BODY_BYTES ?? 500_000),
   });

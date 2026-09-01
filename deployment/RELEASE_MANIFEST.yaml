@@ -8,12 +8,14 @@ exposure_model:
     - console-web
     - forge-web
     - core-api-browser-endpoint
+    - github-webhook-endpoint-only
   internal_only:
     - native-diagnosis-worker
     - integration-dispatcher
     - n8n-adapter
     - open-webui-adapter
     - openclaw-adapter
+    - github-app-adapter
     - n8n-runtime
     - open-webui-runtime
     - openclaw-runtime
@@ -106,6 +108,19 @@ units:
     canonical_store_access: false
     dockerfile: deployment/Dockerfile.openclaw-adapter
     docker_build_validation: ci
+  github-app-adapter:
+    path: services/github-app-adapter
+    status: approval-bound-translation-pull-request-boundary
+    public: false
+    port: 8085
+    health: /healthz
+    canonical_store_access: false
+    repository_scope: hadiranweb/casio-plus-final
+    base_ref_scope: main
+    catalog_path_scope: packages/i18n/messages/fa.json
+    auto_merge: false
+    dockerfile: deployment/Dockerfile.github-app-adapter
+    docker_build_validation: ci
   openclaw-runtime:
     path: runtime/openclaw
     status: pinned-private-runtime
@@ -140,9 +155,12 @@ promotion:
     - n8n-adapter-authentication
     - open-webui-model-only-contract
     - openclaw-approval-and-target-resolution
+    - translation-change-set-four-eyes-review
+    - github-app-minimum-permissions-and-webhook-signature
+    - translation-pull-request-no-auto-merge
     - runtime-usage-attribution
     - golden-flow-e2e
-    - accessibility-six-state
+    - accessibility-twelve-state-en-fa
     - performance-budgets
     - independent-design-audit
     - artifact-delivery
