@@ -34,11 +34,31 @@ function LocaleSwitcher({ locale }: { locale: Locale }) {
   return (
     <nav className="locale-switcher" aria-label={m.shared_locale_switch_aria()}>
       <span>{m.shared_locale_language()}</span>
-      <button type="button" aria-pressed={locale === 'en'} onClick={() => changeLocale('en')}>
-        {m.shared_locale_english()}
+      <button
+        type="button"
+        aria-label={m.shared_locale_english()}
+        aria-pressed={locale === 'en'}
+        onClick={() => changeLocale('en')}
+      >
+        <span className="locale-name-long" aria-hidden="true">
+          {m.shared_locale_english()}
+        </span>
+        <bdi className="locale-name-short" aria-hidden="true" dir="ltr">
+          EN
+        </bdi>
       </button>
-      <button type="button" aria-pressed={locale === 'fa'} onClick={() => changeLocale('fa')}>
-        {m.shared_locale_persian()}
+      <button
+        type="button"
+        aria-label={m.shared_locale_persian()}
+        aria-pressed={locale === 'fa'}
+        onClick={() => changeLocale('fa')}
+      >
+        <span className="locale-name-long" aria-hidden="true">
+          {m.shared_locale_persian()}
+        </span>
+        <bdi className="locale-name-short" aria-hidden="true" dir="ltr">
+          FA
+        </bdi>
       </button>
     </nav>
   );

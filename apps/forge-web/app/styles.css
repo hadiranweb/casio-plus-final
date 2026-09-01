@@ -925,7 +925,7 @@ html[dir='ltr'] .runtime-grid button.active {
   }
   .forge-topbar {
     padding-block: 0;
-    padding-inline: 62px 180px;
+    padding-inline: 62px 132px;
   }
   .session-state {
     display: none !important;
@@ -1185,6 +1185,9 @@ html[dir='ltr'] .runtime-grid button.active {
   font-size: 12px;
   font-weight: 750;
 }
+.locale-name-short {
+  display: none;
+}
 .locale-switcher button[aria-pressed='true'] {
   background: #151815;
   color: #f2f3ef;
@@ -1206,6 +1209,18 @@ html[dir='ltr'] .runtime-grid button.active {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+  .locale-switcher button {
+    min-inline-size: 44px;
+    padding-inline: 10px;
+  }
+  .locale-name-long {
+    display: none;
+  }
+  .locale-name-short {
+    display: inline;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.04em;
   }
 }
 

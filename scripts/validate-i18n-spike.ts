@@ -142,7 +142,7 @@ async function documentState(page: import('puppeteer-core').Page, surface: Surfa
       dir: document.documentElement.dir,
       locale: document.documentElement.dataset.locale,
       labels: [...document.querySelectorAll('.locale-switcher button')].map((button) =>
-        button.textContent?.trim(),
+        button.getAttribute('aria-label'),
       ),
       headline: document.querySelector(headlineSelector)?.textContent?.trim(),
     };
@@ -154,7 +154,7 @@ async function clickLocale(page: import('puppeteer-core').Page, label: string) {
     page.waitForNavigation({ waitUntil: 'networkidle0' }),
     page.evaluate((expectedLabel) => {
       const button = [...document.querySelectorAll('.locale-switcher button')].find(
-        (candidate) => candidate.textContent?.trim() === expectedLabel,
+        (candidate) => candidate.getAttribute('aria-label') === expectedLabel,
       );
       if (!(button instanceof HTMLButtonElement)) {
         throw new Error(`${expectedLabel} switch is missing`);
