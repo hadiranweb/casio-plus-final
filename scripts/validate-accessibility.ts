@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { access } from 'node:fs/promises';
+import { access, mkdir } from 'node:fs/promises';
 import axe from 'axe-core';
 import puppeteer from 'puppeteer-core';
 
@@ -9,7 +9,11 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required for accessibility va
 const coreUrl = 'http://127.0.0.1:8080';
 const consoleUrl = 'http://127.0.0.1:4173';
 const forgeUrl = 'http://127.0.0.1:4174';
+const localeCookieName = 'CASIOPLUS_LOCALE';
+const screenshotDirectory = process.env.CASIOPLUS_A11Y_SCREENSHOT_DIR;
 const processes: Array<{ name: string; process: ChildProcess; logs: string[] }> = [];
+
+type Locale = 'en' | 'fa';
 
 function start(name: string, command: string, args: string[], env: Record<string, string>) {
   const child = spawn(command, args, {
@@ -57,6 +61,10 @@ async function findChromium() {
 
 type AuditResult = {
   name: string;
+  locale: Locale;
+  dir: 'ltr' | 'rtl';
+  horizontalOverflow: boolean;
+  controlOverlaps: string[];
   violations: Array<{ id: string; impact: string | null | undefined; targets: string[][] }>;
   incomplete: Array<{ id: string; impact: string | null | undefined; targets: string[][] }>;
 };
@@ -96,10 +104,68 @@ async function main() {
       url: string,
       width: number,
       height: number,
+      locale: Locale,
       loadGraph = false,
     ) {
       await page.setViewport({ width, height });
+      await page.setCookie({
+        name: localeCookieName,
+        value: locale,
+        domain: '127.0.0.1',
+        path: '/',
+      });
       await page.goto(url, { waitUntil: 'networkidle0' });
+      const documentState = await page.evaluate(() => {
+        const switcher = document.querySelector('.locale-switcher');
+        const switcherRect = switcher?.getBoundingClientRect();
+        const controlOverlaps = switcherRect
+          ? [
+              ...document.querySelectorAll(
+                '.console-topbar button, .console-topbar a, .forge-topbar button, .forge-topbar a, .mobile-menu, .forge-mobile-menu',
+              ),
+            ]
+              .filter((element) => !switcher?.contains(element))
+              .filter((element) => {
+                const rect = element.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return false;
+                return !(
+                  rect.right <= switcherRect.left ||
+                  rect.left >= switcherRect.right ||
+                  rect.bottom <= switcherRect.top ||
+                  rect.top >= switcherRect.bottom
+                );
+              })
+              .map((element) => {
+                const rect = element.getBoundingClientRect();
+                const label =
+                  element.className ||
+                  element.getAttribute('aria-label') ||
+                  element.tagName.toLowerCase();
+                return `${label}@${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.right)},${Math.round(rect.bottom)}|switch=${Math.round(switcherRect.left)},${Math.round(switcherRect.top)},${Math.round(switcherRect.right)},${Math.round(switcherRect.bottom)}`;
+              })
+          : [];
+        return {
+          lang: document.documentElement.lang,
+          dir: document.documentElement.dir,
+          horizontalOverflow:
+            document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+          controlOverlaps,
+        };
+      });
+      const expectedDirection = locale === 'fa' ? 'rtl' : 'ltr';
+      if (documentState.lang !== locale || documentState.dir !== expectedDirection) {
+        throw new Error(
+          `${name}-${locale} document locale mismatch: ${documentState.lang}/${documentState.dir}`,
+        );
+      }
+      if (documentState.horizontalOverflow) {
+        throw new Error(`${name}-${locale} has horizontal document overflow at ${width}x${height}`);
+      }
+      if (documentState.controlOverlaps.length > 0) {
+        throw new Error(
+          `${name}-${locale} locale switch overlaps controls: ${documentState.controlOverlaps.join(', ')}`,
+        );
+      }
       if (loadGraph) {
         await page.evaluate(() => {
           const button = document.querySelector('[data-testid="load-memory-graph"]');
@@ -108,6 +174,13 @@ async function main() {
           button.click();
         });
         await page.waitForSelector('.memory-graph-canvas canvas', { timeout: 15_000 });
+      }
+      if (screenshotDirectory) {
+        await mkdir(screenshotDirectory, { recursive: true });
+        await page.screenshot({
+          path: `${screenshotDirectory}/${name}-${locale}-${width}x${height}.png`,
+          fullPage: true,
+        });
       }
       await page.evaluate(axe.source);
       const raw = (await page.evaluate(`
@@ -128,12 +201,21 @@ async function main() {
             incomplete: project(auditResult.incomplete)
           };
         })()
-      `)) as Omit<AuditResult, 'name'>;
-      results.push({ name, ...raw });
+      `)) as Pick<AuditResult, 'violations' | 'incomplete'>;
+      results.push({
+        name: `${name}-${locale}`,
+        locale,
+        dir: expectedDirection,
+        horizontalOverflow: documentState.horizontalOverflow,
+        controlOverlaps: documentState.controlOverlaps,
+        ...raw,
+      });
     }
 
-    await audit('console-anonymous', consoleUrl, 1440, 1000);
-    await audit('forge-anonymous', forgeUrl, 1440, 1000);
+    for (const locale of ['en', 'fa'] as const) {
+      await audit('console-anonymous', consoleUrl, 1440, 1000, locale);
+      await audit('forge-anonymous', forgeUrl, 1440, 1000, locale);
+    }
 
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     const registration = await fetch(`${coreUrl}/api/v1/auth/register`, {
@@ -247,10 +329,12 @@ async function main() {
       }),
     );
 
-    await audit('console-authenticated-desktop', consoleUrl, 1440, 1000, true);
-    await audit('console-authenticated-mobile', consoleUrl, 390, 844, true);
-    await audit('forge-authenticated-desktop', forgeUrl, 1440, 1000);
-    await audit('forge-authenticated-mobile', forgeUrl, 390, 844);
+    for (const locale of ['en', 'fa'] as const) {
+      await audit('console-authenticated-desktop', consoleUrl, 1440, 1000, locale, true);
+      await audit('console-authenticated-mobile', consoleUrl, 390, 844, locale, true);
+      await audit('forge-authenticated-desktop', forgeUrl, 1440, 1000, locale);
+      await audit('forge-authenticated-mobile', forgeUrl, 390, 844, locale);
+    }
 
     const violations = results.flatMap((result) =>
       result.violations.map((violation) => ({ state: result.name, ...violation })),
@@ -265,6 +349,10 @@ async function main() {
         status: violations.length === 0 && unresolvedIncomplete.length === 0 ? 'ok' : 'failed',
         states: results.map((result) => ({
           name: result.name,
+          locale: result.locale,
+          dir: result.dir,
+          horizontalOverflow: result.horizontalOverflow,
+          controlOverlaps: result.controlOverlaps,
           violations: result.violations.length,
           incomplete: result.incomplete.length,
         })),

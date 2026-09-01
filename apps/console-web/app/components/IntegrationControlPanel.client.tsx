@@ -1,3 +1,4 @@
+import { formatStatusLabel } from '@casioplus/i18n/display-labels';
 import { m } from '@casioplus/i18n/messages';
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, KeyRound, Link2, PlugZap, RefreshCw, RotateCw } from 'lucide-react';
@@ -471,10 +472,10 @@ export default function IntegrationControlPanel({
             <article key={application.id} className="integration-record">
               <header>
                 <div>
-                  <strong>{application.name}</strong>
+                  <strong dir="auto">{application.name}</strong>
                   <span dir="ltr">{application.key}</span>
                 </div>
-                <b>{application.status}</b>
+                <b>{formatStatusLabel(application.status)}</b>
                 <button
                   className="danger-text-action"
                   type="button"
@@ -498,7 +499,7 @@ export default function IntegrationControlPanel({
                           <strong dir="ltr">{item.keyId}</strong>
                           <span dir="ltr">{item.secretRef}</span>
                         </div>
-                        <b>{item.status}</b>
+                        <b>{formatStatusLabel(item.status)}</b>
                         <button
                           className="danger-text-action"
                           type="button"
@@ -521,12 +522,12 @@ export default function IntegrationControlPanel({
                     application.mappings.map((item) => (
                       <div className="integration-record-row" key={item.id}>
                         <div>
-                          <strong>{item.workspaceName}</strong>
+                          <strong dir="auto">{item.workspaceName}</strong>
                           <span dir="ltr">
                             {item.externalTenantRef} / {item.externalWorkspaceRef}
                           </span>
                         </div>
-                        <b>{item.status}</b>
+                        <b>{formatStatusLabel(item.status)}</b>
                         <button
                           className="danger-text-action"
                           type="button"

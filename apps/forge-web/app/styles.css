@@ -110,7 +110,7 @@ a {
   position: fixed;
   z-index: 30;
   top: 0;
-  right: 0;
+  inset-inline-start: 0;
   width: 264px;
   height: 100vh;
   display: flex;
@@ -118,7 +118,7 @@ a {
   padding: 18px 13px;
   background: #151815;
   color: #e9ede9;
-  border-left: 1px solid #2c352f;
+  border-inline-end: 1px solid #2c352f;
 }
 .forge-brand {
   height: 48px;
@@ -149,7 +149,7 @@ a {
 }
 .forge-brand button {
   display: none;
-  margin-right: auto;
+  margin-inline-start: auto;
   border: 0;
   background: transparent;
   color: #9ca69f;
@@ -191,7 +191,7 @@ a {
   background: transparent;
   color: #9ba49e;
   padding: 9px 10px;
-  text-align: right;
+  text-align: start;
   cursor: pointer;
 }
 .flow-list > button:hover,
@@ -203,7 +203,7 @@ a {
 .flow-list > button.active:after {
   content: '';
   position: absolute;
-  right: 13px;
+  inset-inline-start: 13px;
   width: 3px;
   height: 28px;
   background: #55e69b;
@@ -231,7 +231,8 @@ a {
     Menlo,
     monospace;
   direction: ltr;
-  text-align: right;
+  text-align: start;
+  unicode-bidi: isolate;
 }
 .flow-status {
   width: 7px;
@@ -303,7 +304,7 @@ a {
 }
 .forge-main {
   min-height: 100vh;
-  margin-right: 264px;
+  margin-inline-start: 264px;
 }
 .forge-topbar {
   height: 65px;
@@ -313,7 +314,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding-block: 0;
+  padding-inline: 28px 260px;
   border-bottom: 1px solid #d6dbd7;
   background: rgba(242, 243, 239, 0.94);
   backdrop-filter: blur(12px);
@@ -440,7 +442,7 @@ a {
   font-size: 11px;
 }
 .forge-alert button {
-  margin-right: auto;
+  margin-inline-start: auto;
   border: 0;
   background: transparent;
   color: inherit;
@@ -539,7 +541,7 @@ a {
   border: 1px solid #d6dcd7;
   background: #fbfcfa;
   padding: 10px;
-  text-align: right;
+  text-align: start;
   cursor: pointer;
 }
 .runtime-grid button:hover {
@@ -548,7 +550,12 @@ a {
 .runtime-grid button.active {
   border-color: #2f7b53;
   background: #f1faf5;
+}
+html[dir='rtl'] .runtime-grid button.active {
   box-shadow: inset 3px 0 #55e69b;
+}
+html[dir='ltr'] .runtime-grid button.active {
+  box-shadow: inset -3px 0 #55e69b;
 }
 .runtime-grid button > span {
   display: flex;
@@ -872,29 +879,35 @@ a {
     width: 100%;
   }
   .heading-actions .publish-action {
-    margin-right: auto;
+    margin-inline-start: auto;
   }
 }
 @media (max-width: 760px) {
   .flow-rail {
     width: min(290px, 86vw);
-    transform: translateX(100%);
     transition: transform 0.2s;
   }
-  .flow-rail.is-open {
+  html[dir='rtl'] .flow-rail {
+    transform: translateX(100%);
+  }
+  html[dir='ltr'] .flow-rail {
+    transform: translateX(-100%);
+  }
+  html[dir='rtl'] .flow-rail.is-open,
+  html[dir='ltr'] .flow-rail.is-open {
     transform: translateX(0);
   }
   .forge-brand button {
     display: grid;
   }
   .forge-main {
-    margin-right: 0;
+    margin-inline-start: 0;
   }
   .forge-mobile-menu {
     position: fixed;
     z-index: 24;
     top: 13px;
-    right: 13px;
+    inset-inline-start: 13px;
     width: 39px;
     height: 39px;
     display: grid;
@@ -911,7 +924,8 @@ a {
     background: rgba(10, 14, 11, 0.52);
   }
   .forge-topbar {
-    padding: 0 62px 0 14px;
+    padding-block: 0;
+    padding-inline: 62px 180px;
   }
   .session-state {
     display: none !important;
@@ -1092,7 +1106,7 @@ a {
   max-height: 150px;
   margin: 0;
   overflow: auto;
-  border-right: 2px solid #55e69b;
+  border-inline-start: 2px solid #55e69b;
   background: #f7f9f6;
   padding: 9px;
   color: #24352a;
@@ -1136,4 +1150,61 @@ a {
 .resume-run-action:disabled {
   color: #747f77;
   cursor: not-allowed;
+}
+
+.locale-switcher {
+  position: fixed;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(17, 24, 20, 0.16);
+  border-radius: 999px;
+  background: rgba(242, 243, 239, 0.94);
+  box-shadow: 0 8px 28px rgba(17, 24, 20, 0.12);
+  backdrop-filter: blur(14px);
+}
+.locale-switcher > span {
+  padding-inline: 8px 4px;
+  color: #536159;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.locale-switcher button {
+  min-height: 34px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+.locale-switcher button[aria-pressed='true'] {
+  background: #151815;
+  color: #f2f3ef;
+}
+.locale-switcher button:focus-visible {
+  outline: 3px solid rgba(26, 123, 84, 0.32);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .locale-switcher {
+    inset-block-start: 10px;
+    inset-inline-end: 10px;
+  }
+  .locale-switcher > span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }

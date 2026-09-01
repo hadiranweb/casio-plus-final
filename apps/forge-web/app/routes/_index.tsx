@@ -1,3 +1,4 @@
+import { formatRoleLabel } from '@casioplus/i18n/display-labels';
 import { formatDate } from '@casioplus/i18n/formatters';
 import { m } from '@casioplus/i18n/messages';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
@@ -391,8 +392,8 @@ export default function Forge() {
               >
                 <span className={`flow-status ${flow.status}`} />
                 <div>
-                  <strong>{flow.name}</strong>
-                  <small>{flow.key}</small>
+                  <strong dir="auto">{flow.name}</strong>
+                  <small dir="ltr">{flow.key}</small>
                 </div>
                 <ChevronLeft size={14} />
               </button>
@@ -408,7 +409,7 @@ export default function Forge() {
             <LockKeyhole size={14} />
             <span>
               <strong>{m.forge_private_workspace()}</strong>
-              <small>{session.context.role}</small>
+              <small>{formatRoleLabel(session.context.role)}</small>
             </span>
           </div>
           <a href={consoleUrl}>
@@ -421,7 +422,7 @@ export default function Forge() {
         <header className="forge-topbar">
           <div>
             <span>{m.forge_workspace_breadcrumb()}</span>
-            <strong>{selectedFlow?.name ?? m.forge_new_flow()}</strong>
+            <strong dir="auto">{selectedFlow?.name ?? m.forge_new_flow()}</strong>
           </div>
           <div>
             <span className="session-state">
@@ -475,6 +476,7 @@ export default function Forge() {
                   <label>
                     {m.forge_display_name_label()}
                     <input
+                      dir="auto"
                       value={flowName}
                       onChange={(event) => setFlowName(event.target.value)}
                       placeholder={m.forge_display_name_placeholder()}
@@ -551,6 +553,7 @@ export default function Forge() {
                     <label className="runtime-config-wide">
                       {m.forge_system_prompt_optional_label()}
                       <textarea
+                        dir="auto"
                         value={runtimeSystemPrompt}
                         onChange={(event) => setRuntimeSystemPrompt(event.target.value)}
                         rows={3}
@@ -594,7 +597,7 @@ export default function Forge() {
                 </div>
                 <div className="schema-grid">
                   <label>
-                    <span>input.schema.json</span>
+                    <span dir="ltr">input.schema.json</span>
                     <textarea
                       dir="ltr"
                       spellCheck={false}
@@ -603,7 +606,7 @@ export default function Forge() {
                     />
                   </label>
                   <label>
-                    <span>output.schema.json</span>
+                    <span dir="ltr">output.schema.json</span>
                     <textarea
                       dir="ltr"
                       spellCheck={false}
@@ -625,6 +628,7 @@ export default function Forge() {
                 <label className="version-note">
                   {m.forge_change_question()}
                   <input
+                    dir="auto"
                     value={versionNote}
                     onChange={(event) => setVersionNote(event.target.value)}
                     placeholder={m.forge_change_placeholder()}
@@ -696,13 +700,16 @@ export default function Forge() {
                   <div className="version-list">
                     {versions.map((version) => (
                       <article key={version.id}>
-                        <div className="version-number">v{version.version}</div>
+                        <div className="version-number" dir="ltr">
+                          v{version.version}
+                        </div>
                         <div>
-                          <strong>
+                          <strong dir="auto">
                             {String(version.definition.note ?? m.forge_no_version_note())}
                           </strong>
                           <small>
-                            {version.runtimeBinding} · {formatDate(version.createdAt)}
+                            <bdi dir="ltr">{version.runtimeBinding}</bdi> ·{' '}
+                            {formatDate(version.createdAt)}
                           </small>
                         </div>
                         <button

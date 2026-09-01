@@ -1,4 +1,5 @@
 import { formatDateTime } from '@casioplus/i18n/formatters';
+import { formatRoleLabel } from '@casioplus/i18n/display-labels';
 import { m } from '@casioplus/i18n/messages';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouteLoaderData } from '@remix-run/react';
@@ -276,6 +277,7 @@ function AuthGateway({
               {m.console_home_auth_your_name()}
               <input
                 required
+                dir="auto"
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
               />
@@ -284,6 +286,7 @@ function AuthGateway({
               {m.console_home_auth_org_name()}
               <input
                 required
+                dir="auto"
                 value={organizationName}
                 onChange={(event) => setOrganizationName(event.target.value)}
               />
@@ -299,9 +302,10 @@ function AuthGateway({
               />
             </label>
             <label>
-              Workspace
+              {m.shared_workspace()}
               <input
                 required
+                dir="auto"
                 value={workspaceName}
                 onChange={(event) => setWorkspaceName(event.target.value)}
               />
@@ -334,6 +338,7 @@ function AuthGateway({
           <input
             required
             type="password"
+            dir="ltr"
             minLength={12}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -658,7 +663,7 @@ export default function Console() {
               <div>{session.user.displayName.slice(0, 1)}</div>
               <span>
                 <strong>{session.user.displayName}</strong>
-                <small>{session.context.role}</small>
+                <small>{formatRoleLabel(session.context.role)}</small>
               </span>
             </div>
             <button className="icon-control" onClick={logout} aria-label={m.console_home_logout()}>
@@ -726,8 +731,8 @@ export default function Console() {
                     <div className="data-row" key={work.id}>
                       <span className={`status-mark ${work.status}`} />
                       <div>
-                        <strong>{work.title}</strong>
-                        <span>{work.intent || m.console_home_no_extra_context()}</span>
+                        <strong dir="auto">{work.title}</strong>
+                        <span dir="auto">{work.intent || m.console_home_no_extra_context()}</span>
                       </div>
                       <div>
                         <b>{statusLabel(work.status)}</b>
@@ -761,7 +766,7 @@ export default function Console() {
                       <span className={`timeline-node ${run.status}`} />
                       <div>
                         <strong>{statusLabel(run.status)}</strong>
-                        <span>{run.id.slice(0, 8)}</span>
+                        <span dir="ltr">{run.id.slice(0, 8)}</span>
                       </div>
                       <small>{dateLabel(run.createdAt)}</small>
                     </div>
@@ -772,7 +777,7 @@ export default function Console() {
                 <div className="selected-flow">
                   <Workflow size={15} />
                   <span>{m.console_home_active_flow()}</span>
-                  <strong>{activeFlow.name}</strong>
+                  <strong dir="auto">{activeFlow.name}</strong>
                 </div>
               )}
             </article>
@@ -790,6 +795,7 @@ export default function Console() {
               <label>
                 {m.console_home_problem_title()}
                 <input
+                  dir="auto"
                   value={workTitle}
                   onChange={(event) => setWorkTitle(event.target.value)}
                   placeholder={m.console_home_problem_placeholder()}
@@ -798,6 +804,7 @@ export default function Console() {
               <label>
                 {m.console_home_expected_result()}
                 <textarea
+                  dir="auto"
                   value={workIntent}
                   onChange={(event) => setWorkIntent(event.target.value)}
                   placeholder={m.console_home_expected_placeholder()}
@@ -820,6 +827,7 @@ export default function Console() {
               <form className="search-field" onSubmit={searchMemory}>
                 <Search size={16} />
                 <input
+                  dir="auto"
                   value={memoryQuery}
                   onChange={(event) => setMemoryQuery(event.target.value)}
                   placeholder={m.console_home_search_placeholder()}
@@ -841,9 +849,9 @@ export default function Console() {
                 <div className="memory-results">
                   {data.memories.slice(0, 4).map((memory) => (
                     <article key={memory.id}>
-                      <span>{memory.kind}</span>
-                      <strong>{memory.title}</strong>
-                      <p>
+                      <span dir="ltr">{memory.kind}</span>
+                      <strong dir="auto">{memory.title}</strong>
+                      <p dir="auto">
                         {String(
                           memory.content.finding ??
                             memory.content.summary ??
@@ -851,7 +859,7 @@ export default function Console() {
                         )}
                       </p>
                       <small>
-                        {memory.sensitivity} · {dateLabel(memory.createdAt)}
+                        <bdi dir="ltr">{memory.sensitivity}</bdi> · {dateLabel(memory.createdAt)}
                       </small>
                     </article>
                   ))}

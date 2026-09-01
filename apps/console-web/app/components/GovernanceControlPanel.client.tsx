@@ -1,4 +1,5 @@
 import { formatDateTime, formatMoney } from '@casioplus/i18n/formatters';
+import { formatStatusLabel } from '@casioplus/i18n/display-labels';
 import { m } from '@casioplus/i18n/messages';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -500,7 +501,7 @@ export default function GovernanceControlPanel({
                     <strong>{target.key}</strong>
                     <small>{target.executorRef}</small>
                   </span>
-                  <b>{target.status}</b>
+                  <b>{formatStatusLabel(target.status)}</b>
                   {target.status === 'active' && (
                     <button
                       type="button"
@@ -608,7 +609,7 @@ export default function GovernanceControlPanel({
                       {policy.targetKey} · {policy.riskClass}
                     </small>
                   </span>
-                  <b>{policy.status}</b>
+                  <b>{formatStatusLabel(policy.status)}</b>
                   {policy.status === 'active' && (
                     <button
                       type="button"
@@ -734,7 +735,7 @@ export default function GovernanceControlPanel({
                     </strong>
                     <small>{formatDateTime(version.effectiveFrom)}</small>
                   </span>
-                  <b>{version.status}</b>
+                  <b>{formatStatusLabel(version.status)}</b>
                 </div>
               ))}
             </div>
@@ -878,7 +879,7 @@ export default function GovernanceControlPanel({
                       {binding.pricingKey} v{binding.pricingVersion} · {binding.payer}
                     </small>
                   </span>
-                  <b>{binding.status}</b>
+                  <b>{formatStatusLabel(binding.status)}</b>
                 </div>
               ))}
             </div>

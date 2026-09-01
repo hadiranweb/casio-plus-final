@@ -1,3 +1,4 @@
+import { formatStatusLabel } from '@casioplus/i18n/display-labels';
 import { formatDateTime } from '@casioplus/i18n/formatters';
 import { m } from '@casioplus/i18n/messages';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -74,17 +75,6 @@ function defaultInput(runtime: string) {
 function formatValue(value: unknown) {
   if (value === null || value === undefined) return '—';
   return JSON.stringify(value, null, 2);
-}
-
-function statusLabel(status: string) {
-  const labels: Record<string, string> = {
-    queued: m.shared_status_queued(),
-    running: m.shared_status_running(),
-    succeeded: m.shared_status_succeeded(),
-    failed: m.shared_status_failed(),
-    cancelled: m.shared_status_cancelled(),
-  };
-  return labels[status] ?? status;
 }
 
 export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: Props) {
@@ -212,13 +202,14 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
         <>
           <div className="active-version-line">
             <span>{m.forge_run_active_version()}</span>
-            <strong>v{activeVersion.version}</strong>
-            <small>{activeVersion.runtimeBinding}</small>
+            <strong dir="ltr">v{activeVersion.version}</strong>
+            <small dir="ltr">{activeVersion.runtimeBinding}</small>
           </div>
           <form onSubmit={execute} className="run-form">
             <label>
               {m.forge_run_work_title_label()}
               <input
+                dir="auto"
                 value={workTitle}
                 onChange={(event) => setWorkTitle(event.target.value)}
                 maxLength={200}
@@ -229,6 +220,7 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
             <label>
               {m.forge_run_intent_label()}
               <input
+                dir="auto"
                 value={workIntent}
                 onChange={(event) => setWorkIntent(event.target.value)}
                 maxLength={2_000}
@@ -236,7 +228,7 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
               />
             </label>
             <label>
-              input.json
+              <span dir="ltr">input.json</span>
               <textarea
                 dir="ltr"
                 spellCheck={false}
@@ -276,10 +268,10 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
           runs.slice(0, 8).map((run) => (
             <article key={run.id}>
               <div>
-                <strong>{statusLabel(run.status)}</strong>
+                <strong>{formatStatusLabel(run.status)}</strong>
                 <span>{formatDateTime(run.createdAt)}</span>
               </div>
-              {run.errorCode && <code>{run.errorCode}</code>}
+              {run.errorCode && <code dir="ltr">{run.errorCode}</code>}
               {run.status === 'queued' && (
                 <button
                   className="resume-run-action"
@@ -303,7 +295,7 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
                   {m.forge_run_resume()}
                 </button>
               )}
-              {run.output && <pre>{formatValue(run.output)}</pre>}
+              {run.output && <pre dir="ltr">{formatValue(run.output)}</pre>}
             </article>
           ))
         )}

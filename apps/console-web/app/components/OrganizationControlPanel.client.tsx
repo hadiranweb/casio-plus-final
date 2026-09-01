@@ -1,4 +1,5 @@
 import { formatDateTime } from '@casioplus/i18n/formatters';
+import { formatRoleLabel, formatStatusLabel } from '@casioplus/i18n/display-labels';
 import { m } from '@casioplus/i18n/messages';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -567,15 +568,17 @@ export default function OrganizationControlPanel({
                     {members.map((member) => (
                       <tr key={member.actorId}>
                         <td>
-                          <strong>{member.displayName}</strong>
-                          <span>{member.email ?? m.console_organization_no_account()}</span>
+                          <strong dir="auto">{member.displayName}</strong>
+                          <span dir={member.email ? 'ltr' : undefined}>
+                            {member.email ?? m.console_organization_no_account()}
+                          </span>
                         </td>
                         <td>
                           {member.workspaces.filter((item) => item.status === 'active').length}
                         </td>
                         <td>
                           {member.organizationRole === 'owner' ? (
-                            <span>{member.organizationRole}</span>
+                            <span>{formatRoleLabel(member.organizationRole)}</span>
                           ) : (
                             <select
                               aria-label={m.console_organization_member_role_aria({
@@ -594,7 +597,7 @@ export default function OrganizationControlPanel({
                             </select>
                           )}
                         </td>
-                        <td>{member.status}</td>
+                        <td>{formatStatusLabel(member.status)}</td>
                         <td>
                           <button
                             className="danger-text-action"
@@ -630,13 +633,14 @@ export default function OrganizationControlPanel({
                 {invitations.map((invitation) => (
                   <div key={invitation.id}>
                     <div>
-                      <strong>{invitation.email}</strong>
+                      <strong dir="ltr">{invitation.email}</strong>
                       <span>
-                        {invitation.workspaceName} · {invitation.role} ·{' '}
+                        <bdi dir="auto">{invitation.workspaceName}</bdi> ·{' '}
+                        <bdi>{formatRoleLabel(invitation.role)}</bdi> ·{' '}
                         {formatDate(invitation.expiresAt)}
                       </span>
                     </div>
-                    <b>{invitation.status}</b>
+                    <b>{formatStatusLabel(invitation.status)}</b>
                     <button
                       className="danger-text-action"
                       type="button"
