@@ -54,20 +54,23 @@ check_surface() {
   printf 'REMIX_SSR_SMOKE_PASS %s\n' "$surface"
 }
 
-check_console_persian_cookie() {
-  local html_path="/tmp/casioplus-console-web-remix-smoke-fa.html"
+check_persian_cookie() {
+  local surface="$1"
+  local port="$2"
+  local html_path="/tmp/casioplus-${surface}-remix-smoke-fa.html"
   curl --fail --silent --show-error \
     --header 'Cookie: CASIOPLUS_LOCALE=fa' \
-    "http://127.0.0.1:${APP_PORT}/" -o "$html_path"
-  assert_safe_html 'console-web-fa' "$html_path"
+    "http://127.0.0.1:${port}/" -o "$html_path"
+  assert_safe_html "${surface}-fa" "$html_path"
   grep -Fq '<html lang="fa" dir="rtl" data-locale="fa">' "$html_path"
   if grep -Fq '<html lang="en" dir="ltr" data-locale="en">' "$html_path"; then
-    echo 'English document marker leaked into Persian Console response' >&2
+    echo "English document marker leaked into Persian ${surface} response" >&2
     return 1
   fi
-  printf 'REMIX_SSR_SMOKE_PASS %s\n' 'console-web-fa'
+  printf 'REMIX_SSR_SMOKE_PASS %s\n' "${surface}-fa"
 }
 
 check_surface console-web "$APP_PORT" '<html lang="en" dir="ltr" data-locale="en">'
-check_console_persian_cookie
-check_surface forge-web "$FORGE_PORT" '<html lang="fa" dir="rtl">'
+check_persian_cookie console-web "$APP_PORT"
+check_surface forge-web "$FORGE_PORT" '<html lang="en" dir="ltr" data-locale="en">'
+check_persian_cookie forge-web "$FORGE_PORT"

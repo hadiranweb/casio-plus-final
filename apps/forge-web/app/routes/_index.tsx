@@ -1,4 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { formatDate } from '@casioplus/i18n/formatters';
+import { m } from '@casioplus/i18n/messages';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouteLoaderData } from '@remix-run/react';
 import { CasioplusBrandMark } from '@casioplus/ui';
 import type { loader as rootLoader } from '../root.js';
@@ -63,42 +65,61 @@ class ApiError extends Error {
   }
 }
 
-const runtimeOptions = [
-  { value: 'native', label: 'Native', detail: 'deterministic worker', icon: Settings2 },
-  { value: 'n8n', label: 'n8n', detail: 'orchestration plane', icon: Network },
-  { value: 'open-webui', label: 'Open WebUI', detail: 'model interaction', icon: Sparkles },
-  { value: 'openclaw', label: 'OpenClaw', detail: 'approval action', icon: Bot },
-];
+function getRuntimeOptions() {
+  return [
+    {
+      value: 'native',
+      label: m.forge_runtime_native_label(),
+      detail: m.forge_runtime_native_detail(),
+      icon: Settings2,
+    },
+    { value: 'n8n', label: 'n8n', detail: m.forge_runtime_n8n_detail(), icon: Network },
+    {
+      value: 'open-webui',
+      label: 'Open WebUI',
+      detail: m.forge_runtime_open_webui_detail(),
+      icon: Sparkles,
+    },
+    {
+      value: 'openclaw',
+      label: 'OpenClaw',
+      detail: m.forge_runtime_openclaw_detail(),
+      icon: Bot,
+    },
+  ];
+}
 
-const runtimeLifecycle: Record<
+function getRuntimeLifecycle(): Record<
   string,
   { gateLabel: string; gateDetail: string; resultLabel: string; resultDetail: string }
-> = {
-  native: {
-    gateLabel: 'Core lifecycle',
-    gateDetail: 'audited status',
-    resultLabel: 'Canonical result',
-    resultDetail: 'governed output',
-  },
-  n8n: {
-    gateLabel: 'Workflow result',
-    gateDetail: 'typed callback',
-    resultLabel: 'Canonical result',
-    resultDetail: 'adapter response',
-  },
-  'open-webui': {
-    gateLabel: 'Usage meter',
-    gateDetail: 'pricing snapshot',
-    resultLabel: 'Model result',
-    resultDetail: 'metered response',
-  },
-  openclaw: {
-    gateLabel: 'Approval gate',
-    gateDetail: 'human decision',
-    resultLabel: 'Action result',
-    resultDetail: 'delivery audit',
-  },
-};
+> {
+  return {
+    native: {
+      gateLabel: m.forge_lifecycle_core_gate_label(),
+      gateDetail: m.forge_lifecycle_core_gate_detail(),
+      resultLabel: m.forge_lifecycle_canonical_result_label(),
+      resultDetail: m.forge_lifecycle_governed_output_detail(),
+    },
+    n8n: {
+      gateLabel: m.forge_lifecycle_workflow_result_label(),
+      gateDetail: m.forge_lifecycle_typed_callback_detail(),
+      resultLabel: m.forge_lifecycle_canonical_result_label(),
+      resultDetail: m.forge_lifecycle_adapter_response_detail(),
+    },
+    'open-webui': {
+      gateLabel: m.forge_lifecycle_usage_meter_label(),
+      gateDetail: m.forge_lifecycle_pricing_snapshot_detail(),
+      resultLabel: m.forge_lifecycle_model_result_label(),
+      resultDetail: m.forge_lifecycle_metered_response_detail(),
+    },
+    openclaw: {
+      gateLabel: m.forge_lifecycle_approval_gate_label(),
+      gateDetail: m.forge_lifecycle_human_decision_detail(),
+      resultLabel: m.forge_lifecycle_action_result_label(),
+      resultDetail: m.forge_lifecycle_delivery_audit_detail(),
+    },
+  };
+}
 
 const defaultInputSchema = JSON.stringify(
   { type: 'object', additionalProperties: false, properties: {} },
@@ -140,14 +161,11 @@ function AuthBoundary({ consoleUrl }: { consoleUrl: string }) {
     <main className="forge-auth">
       <section>
         <CasioplusBrandMark />
-        <span>CASIOPLUS / FORGE</span>
-        <h1>Flowها فقط در یک session سازمانی معتبر ساخته می‌شوند.</h1>
-        <p>
-          ورود و انتخاب Organization و Workspace در Console انجام می‌شود. Forge همان cookie session
-          و مرز authorization در Core/API را استفاده می‌کند.
-        </p>
+        <span>{m.forge_auth_kicker()}</span>
+        <h1>{m.forge_auth_title()}</h1>
+        <p>{m.forge_auth_description()}</p>
         <a href={consoleUrl}>
-          ورود از Console <ArrowLeft size={16} />
+          {m.forge_auth_console_action()} <ArrowLeft size={16} />
         </a>
       </section>
     </main>
@@ -236,7 +254,7 @@ export default function Forge() {
       setSelectedFlowId(flow.id);
       setFlowName('');
       setFlowKey('');
-      setNotice('Flow ثبت شد؛ اکنون قرارداد و version آن را تعریف کنید.');
+      setNotice(m.forge_flow_created_notice());
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'flow_creation_failed');
     } finally {
@@ -252,10 +270,10 @@ export default function Forge() {
       const inputSchema = JSON.parse(inputSchemaText) as Record<string, unknown>;
       const outputSchema = JSON.parse(outputSchemaText) as Record<string, unknown>;
       if (runtime === 'open-webui' && !runtimeModel.trim()) {
-        throw new Error('model_required');
+        throw new Error(m.forge_model_required_error());
       }
       if (runtime === 'openclaw' && !runtimeTargetKey.trim()) {
-        throw new Error('target_key_required');
+        throw new Error(m.forge_target_required_error());
       }
       const runtimeDefinition =
         runtime === 'open-webui'
@@ -284,7 +302,7 @@ export default function Forge() {
         }),
       });
       setVersionNote('');
-      setNotice('Version immutable ساخته شد و برای review آماده است.');
+      setNotice(m.forge_version_created_notice());
       await loadVersions();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'version_creation_failed');
@@ -302,24 +320,23 @@ export default function Forge() {
         csrfToken,
         { method: 'POST', body: JSON.stringify({}) },
       );
-      setNotice(`Version ${version.version} منتشر شد.`);
+      setNotice(m.forge_version_published_notice({ version: version.version }));
       await Promise.all([loadFlows(), loadVersions()]);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'publication_failed');
     }
   };
 
-  const runtimeDetail = useMemo(
-    () => runtimeOptions.find((option) => option.value === runtime),
-    [runtime],
-  );
+  const runtimeOptions = getRuntimeOptions();
+  const runtimeLifecycle = getRuntimeLifecycle();
+  const runtimeDetail = runtimeOptions.find((option) => option.value === runtime);
   const lifecycleDetail = runtimeLifecycle[runtime] ?? runtimeLifecycle.native;
 
   if (booting) {
     return (
       <main className="forge-boot">
         <CasioplusBrandMark />
-        <span>در حال اعتبارسنجی session…</span>
+        <span>{m.forge_boot_validating_session()}</span>
       </main>
     );
   }
@@ -330,7 +347,7 @@ export default function Forge() {
       <button
         className="forge-mobile-menu"
         onClick={() => setRailOpen(true)}
-        aria-label="بازکردن Flow rail"
+        aria-label={m.forge_open_flow_rail_aria()}
       >
         <Menu size={20} />
       </button>
@@ -338,7 +355,7 @@ export default function Forge() {
         <button
           className="forge-scrim"
           onClick={() => setRailOpen(false)}
-          aria-label="بستن Flow rail"
+          aria-label={m.forge_close_flow_rail_aria()}
         />
       )}
       <aside className={`flow-rail ${railOpen ? 'is-open' : ''}`}>
@@ -348,19 +365,19 @@ export default function Forge() {
             <strong>Casioplus</strong>
             <span>Forge</span>
           </div>
-          <button onClick={() => setRailOpen(false)} aria-label="بستن">
+          <button onClick={() => setRailOpen(false)} aria-label={m.forge_close()}>
             <X size={18} />
           </button>
         </div>
         <div className="rail-title">
-          <span>FLOW CATALOG</span>
+          <span>{m.forge_flow_catalog()}</span>
           <b>{flows.length}</b>
         </div>
         <div className="flow-list">
           {flows.length === 0 ? (
             <div className="rail-empty">
               <Workflow size={20} />
-              <span>هنوز Flowای وجود ندارد.</span>
+              <span>{m.forge_no_flows()}</span>
             </div>
           ) : (
             flows.map((flow) => (
@@ -384,13 +401,13 @@ export default function Forge() {
         </div>
         <a className="new-flow-shortcut" href="#new-flow">
           <Plus size={15} />
-          Flow جدید
+          {m.forge_new_flow()}
         </a>
         <div className="flow-rail-foot">
           <div>
             <LockKeyhole size={14} />
             <span>
-              <strong>private workspace</strong>
+              <strong>{m.forge_private_workspace()}</strong>
               <small>{session.context.role}</small>
             </span>
           </div>
@@ -403,13 +420,13 @@ export default function Forge() {
       <main className="forge-main">
         <header className="forge-topbar">
           <div>
-            <span>Forge / Workspace</span>
-            <strong>{selectedFlow?.name ?? 'Flow جدید'}</strong>
+            <span>{m.forge_workspace_breadcrumb()}</span>
+            <strong>{selectedFlow?.name ?? m.forge_new_flow()}</strong>
           </div>
           <div>
             <span className="session-state">
               <i />
-              session معتبر
+              {m.forge_valid_session()}
             </span>
             <div className="forge-person">{session.user.displayName.slice(0, 1)}</div>
           </div>
@@ -417,17 +434,14 @@ export default function Forge() {
         <div className="forge-content">
           <section className="forge-heading">
             <div>
-              <span>AUTHOR / VERSION / PUBLISH</span>
-              <h1>Flow را مانند یک قرارداد عملیاتی بسازید.</h1>
-              <p>
-                هر version immutable است؛ runtime فقط از adapter مجاز اجرا می‌شود و انتشار مرز
-                review را حفظ می‌کند.
-              </p>
+              <span>{m.forge_author_overline()}</span>
+              <h1>{m.forge_heading_title()}</h1>
+              <p>{m.forge_heading_description()}</p>
             </div>
             <div className="heading-actions">
               <a href="#versions">
                 <GitBranch size={15} />
-                {versions.length} version
+                {m.forge_version_count({ count: versions.length })}
               </a>
             </div>
           </section>
@@ -436,14 +450,14 @@ export default function Forge() {
             <div className="forge-alert error">
               <CircleAlert size={16} />
               <span>{error}</span>
-              <button onClick={() => setError('')}>بستن</button>
+              <button onClick={() => setError('')}>{m.forge_close()}</button>
             </div>
           )}
           {notice && (
             <div className="forge-alert success">
               <Check size={16} />
               <span>{notice}</span>
-              <button onClick={() => setNotice('')}>بستن</button>
+              <button onClick={() => setNotice('')}>{m.forge_close()}</button>
             </div>
           )}
 
@@ -452,22 +466,22 @@ export default function Forge() {
               <form className="forge-surface identity-surface" id="new-flow" onSubmit={createFlow}>
                 <div className="forge-surface-head">
                   <div>
-                    <span>۰۱ / IDENTITY</span>
-                    <h2>هویت Flow</h2>
+                    <span>{m.forge_identity_step()}</span>
+                    <h2>{m.forge_identity_title()}</h2>
                   </div>
                   <Workflow size={19} />
                 </div>
                 <div className="field-pair">
                   <label>
-                    نام نمایشی
+                    {m.forge_display_name_label()}
                     <input
                       value={flowName}
                       onChange={(event) => setFlowName(event.target.value)}
-                      placeholder="نام دقیق Flow"
+                      placeholder={m.forge_display_name_placeholder()}
                     />
                   </label>
                   <label>
-                    کلید پایدار
+                    {m.forge_stable_key_label()}
                     <input
                       dir="ltr"
                       value={flowKey}
@@ -483,15 +497,15 @@ export default function Forge() {
                   disabled={loading || !flowName.trim() || !flowKey.trim()}
                 >
                   <Plus size={15} />
-                  ثبت Flow
+                  {m.forge_create_flow_action()}
                 </button>
               </form>
 
               <section className="forge-surface runtime-surface">
                 <div className="forge-surface-head">
                   <div>
-                    <span>۰۲ / RUNTIME BINDING</span>
-                    <h2>مرز اجرای version</h2>
+                    <span>{m.forge_runtime_step()}</span>
+                    <h2>{m.forge_runtime_boundary_title()}</h2>
                   </div>
                   <Network size={19} />
                 </div>
@@ -514,7 +528,7 @@ export default function Forge() {
                 {runtime === 'open-webui' && (
                   <div className="runtime-config">
                     <label>
-                      model key
+                      {m.forge_model_key_label()}
                       <input
                         dir="ltr"
                         value={runtimeModel}
@@ -524,7 +538,7 @@ export default function Forge() {
                       />
                     </label>
                     <label>
-                      max tokens
+                      {m.forge_max_tokens_label()}
                       <input
                         type="number"
                         min="1"
@@ -535,7 +549,7 @@ export default function Forge() {
                       />
                     </label>
                     <label className="runtime-config-wide">
-                      system prompt اختیاری
+                      {m.forge_system_prompt_optional_label()}
                       <textarea
                         value={runtimeSystemPrompt}
                         onChange={(event) => setRuntimeSystemPrompt(event.target.value)}
@@ -548,7 +562,7 @@ export default function Forge() {
                 {runtime === 'openclaw' && (
                   <div className="runtime-config">
                     <label className="runtime-config-wide">
-                      target key
+                      {m.forge_target_key_label()}
                       <input
                         dir="ltr"
                         value={runtimeTargetKey}
@@ -557,16 +571,15 @@ export default function Forge() {
                         required
                       />
                     </label>
-                    <p className="runtime-config-help">
-                      target و policy متناظر باید پیش از اجرا در Console و Core ثبت شوند.
-                    </p>
+                    <p className="runtime-config-help">{m.forge_target_policy_help()}</p>
                   </div>
                 )}
                 <div className="runtime-note">
                   <ShieldCheck size={16} />
                   <span>
-                    <strong>{runtimeDetail?.label}</strong> فقط از Core و adapter allowlisted
-                    فراخوانی می‌شود؛ credential در Forge قابل مشاهده نیست.
+                    {m.forge_runtime_security_note({
+                      runtime: runtimeDetail?.label ?? runtime,
+                    })}
                   </span>
                 </div>
               </section>
@@ -574,8 +587,8 @@ export default function Forge() {
               <section className="forge-surface contract-surface">
                 <div className="forge-surface-head">
                   <div>
-                    <span>۰۳ / TYPED CONTRACT</span>
-                    <h2>Schema ورودی و خروجی</h2>
+                    <span>{m.forge_contract_step()}</span>
+                    <h2>{m.forge_contract_title()}</h2>
                   </div>
                   <Braces size={19} />
                 </div>
@@ -604,17 +617,17 @@ export default function Forge() {
               <section className="forge-surface version-surface">
                 <div className="forge-surface-head">
                   <div>
-                    <span>۰۴ / VERSION</span>
-                    <h2>یادداشت تغییر</h2>
+                    <span>{m.forge_version_step()}</span>
+                    <h2>{m.forge_change_note_title()}</h2>
                   </div>
                   <GitBranch size={19} />
                 </div>
                 <label className="version-note">
-                  چه چیزی تغییر کرده؟
+                  {m.forge_change_question()}
                   <input
                     value={versionNote}
                     onChange={(event) => setVersionNote(event.target.value)}
-                    placeholder="تغییر contract، policy یا runtime"
+                    placeholder={m.forge_change_placeholder()}
                   />
                 </label>
                 <button
@@ -623,7 +636,7 @@ export default function Forge() {
                   disabled={!selectedFlow || loading}
                 >
                   <Save size={15} />
-                  {loading ? 'در حال ثبت…' : 'ثبت نسخهٔ immutable'}
+                  {loading ? m.forge_saving() : m.forge_save_immutable_version()}
                 </button>
               </section>
             </div>
@@ -631,15 +644,15 @@ export default function Forge() {
             <aside className="forge-inspector">
               <section className="map-panel">
                 <div className="inspector-head">
-                  <span>FLOW MAP</span>
+                  <span>{m.forge_flow_map()}</span>
                   <Play size={15} />
                 </div>
                 <div className="flow-map">
                   <div className="map-node">
                     <span>01</span>
                     <div>
-                      <strong>Input contract</strong>
-                      <small>validated payload</small>
+                      <strong>{m.forge_input_contract()}</strong>
+                      <small>{m.forge_validated_payload()}</small>
                     </div>
                   </div>
                   <i />
@@ -671,13 +684,13 @@ export default function Forge() {
 
               <section className="versions-panel" id="versions">
                 <div className="inspector-head">
-                  <span>VERSION HISTORY</span>
+                  <span>{m.forge_version_history()}</span>
                   <b>{versions.length}</b>
                 </div>
                 {versions.length === 0 ? (
                   <div className="inspector-empty">
                     <FileCheck2 size={20} />
-                    <span>برای Flow انتخاب‌شده versionای ثبت نشده است.</span>
+                    <span>{m.forge_no_versions()}</span>
                   </div>
                 ) : (
                   <div className="version-list">
@@ -685,10 +698,11 @@ export default function Forge() {
                       <article key={version.id}>
                         <div className="version-number">v{version.version}</div>
                         <div>
-                          <strong>{String(version.definition.note ?? 'بدون یادداشت')}</strong>
+                          <strong>
+                            {String(version.definition.note ?? m.forge_no_version_note())}
+                          </strong>
                           <small>
-                            {version.runtimeBinding} ·{' '}
-                            {new Date(version.createdAt).toLocaleDateString('fa-IR')}
+                            {version.runtimeBinding} · {formatDate(version.createdAt)}
                           </small>
                         </div>
                         <button
@@ -698,12 +712,12 @@ export default function Forge() {
                           {selectedFlow?.activeVersionId === version.id ? (
                             <>
                               <Check size={13} />
-                              فعال
+                              {m.forge_version_active()}
                             </>
                           ) : (
                             <>
                               <Rocket size={13} />
-                              انتشار
+                              {m.forge_publish_action()}
                             </>
                           )}
                         </button>
@@ -714,7 +728,7 @@ export default function Forge() {
               </section>
 
               <Suspense
-                fallback={<div className="inspector-empty">در حال بارگذاری Run Control…</div>}
+                fallback={<div className="inspector-empty">{m.forge_loading_run_control()}</div>}
               >
                 <RunControlPanel
                   apiBase={apiBase}
@@ -727,11 +741,8 @@ export default function Forge() {
               <section className="policy-panel">
                 <ShieldCheck size={18} />
                 <div>
-                  <strong>Publication boundary</strong>
-                  <p>
-                    Forge definition می‌سازد؛ Core authorization، review، audit، mapping و
-                    attribution را enforce می‌کند.
-                  </p>
+                  <strong>{m.forge_publication_boundary()}</strong>
+                  <p>{m.forge_publication_boundary_description()}</p>
                 </div>
               </section>
             </aside>

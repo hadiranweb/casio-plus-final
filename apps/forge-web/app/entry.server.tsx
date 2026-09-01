@@ -3,6 +3,7 @@ import type { AppLoadContext, EntryContext } from '@remix-run/node';
 import { createReadableStreamFromReadable } from '@remix-run/node';
 import { RemixServer } from '@remix-run/react';
 import { renderToPipeableStream } from 'react-dom/server';
+import { paraglideMiddleware } from '@casioplus/i18n/server';
 
 export default function handleRequest(
   request: Request,
@@ -10,6 +11,17 @@ export default function handleRequest(
   responseHeaders: Headers,
   remixContext: EntryContext,
   _loadContext: AppLoadContext,
+) {
+  return paraglideMiddleware(request, ({ request: localizedRequest }) =>
+    renderRemixResponse(localizedRequest, responseStatusCode, responseHeaders, remixContext),
+  );
+}
+
+function renderRemixResponse(
+  request: Request,
+  responseStatusCode: number,
+  responseHeaders: Headers,
+  remixContext: EntryContext,
 ) {
   return new Promise<Response>((resolve, reject) => {
     let shellRendered = false;

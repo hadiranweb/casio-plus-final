@@ -2,9 +2,47 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import puppeteer from 'puppeteer-core';
 
-const consoleUrl = 'http://127.0.0.1:4173';
 const localeCookieName = 'CASIOPLUS_LOCALE';
 const processes: Array<{ name: string; process: ChildProcess; logs: string[] }> = [];
+
+type Surface = {
+  name: 'console' | 'forge';
+  url: string;
+  packageName: '@casioplus/console-web' | '@casioplus/forge-web';
+  headlineSelector: string;
+  englishHeadline: string;
+  persianHeadline: string;
+  env: Record<string, string>;
+};
+
+const surfaces: Surface[] = [
+  {
+    name: 'console',
+    url: 'http://127.0.0.1:4173',
+    packageName: '@casioplus/console-web',
+    headlineSelector: '.auth-story h1',
+    englishHeadline: 'Decision, execution, and memory in an auditable path.',
+    persianHeadline: 'تصمیم، اجرا و حافظه در یک مسیر قابل ممیزی.',
+    env: {
+      PORT: '4173',
+      CASIOPLUS_CORE_API_URL: 'http://127.0.0.1:8080',
+      CASIOPLUS_FORGE_URL: 'http://127.0.0.1:4174',
+    },
+  },
+  {
+    name: 'forge',
+    url: 'http://127.0.0.1:4174',
+    packageName: '@casioplus/forge-web',
+    headlineSelector: '.forge-auth h1',
+    englishHeadline: 'Flows are created only in a valid organizational session.',
+    persianHeadline: 'Flowها فقط در یک session سازمانی معتبر ساخته می‌شوند.',
+    env: {
+      PORT: '4174',
+      CASIOPLUS_CORE_API_URL: 'http://127.0.0.1:8080',
+      CASIOPLUS_CONSOLE_URL: 'http://127.0.0.1:4173',
+    },
+  },
+];
 
 function start(name: string, command: string, args: string[], env: Record<string, string>) {
   const child = spawn(command, args, {
@@ -60,41 +98,73 @@ function documentMarker(locale: 'en' | 'fa') {
     : '<html lang="fa" dir="rtl" data-locale="fa">';
 }
 
-async function fetchDocument(locale?: 'en' | 'fa') {
-  const response = await fetch(consoleUrl, {
+async function fetchDocument(surface: Surface, locale?: 'en' | 'fa') {
+  const response = await fetch(surface.url, {
     headers: locale ? { cookie: `${localeCookieName}=${locale}` } : undefined,
   });
-  assert(response.ok, `SSR request failed with ${response.status}`);
+  assert(response.ok, `${surface.name} SSR request failed with ${response.status}`);
   return response.text();
 }
 
-async function validateSsrIsolation() {
-  const defaultHtml = await fetchDocument();
-  assert(defaultHtml.includes(documentMarker('en')), 'default SSR locale is not English/LTR');
+async function validateSsrIsolation(surface: Surface) {
+  const defaultHtml = await fetchDocument(surface);
+  assert(
+    defaultHtml.includes(documentMarker('en')),
+    `${surface.name} default SSR locale is not English/LTR`,
+  );
 
   const requestLocales = Array.from({ length: 80 }, (_, index) =>
     index % 2 === 0 ? ('en' as const) : ('fa' as const),
   );
   const results = await Promise.all(
-    requestLocales.map(async (locale) => ({ locale, html: await fetchDocument(locale) })),
+    requestLocales.map(async (locale) => ({ locale, html: await fetchDocument(surface, locale) })),
   );
 
   for (const result of results) {
     assert(
       result.html.includes(documentMarker(result.locale)),
-      `SSR locale mismatch for concurrent ${result.locale} request`,
+      `${surface.name} SSR locale mismatch for concurrent ${result.locale} request`,
     );
     const otherLocale = result.locale === 'en' ? 'fa' : 'en';
     assert(
       !result.html.includes(documentMarker(otherLocale)),
-      `SSR locale leaked from ${otherLocale} into ${result.locale}`,
+      `${surface.name} SSR locale leaked from ${otherLocale} into ${result.locale}`,
     );
   }
 
-  return { defaultLocale: 'en', concurrentRequests: results.length };
+  return { surface: surface.name, defaultLocale: 'en', concurrentRequests: results.length };
 }
 
-async function validateBrowserSwitch() {
+async function documentState(page: import('puppeteer-core').Page, surface: Surface) {
+  return page.evaluate((headlineSelector) => {
+    return {
+      lang: document.documentElement.lang,
+      dir: document.documentElement.dir,
+      locale: document.documentElement.dataset.locale,
+      labels: [...document.querySelectorAll('.locale-switcher button')].map((button) =>
+        button.textContent?.trim(),
+      ),
+      headline: document.querySelector(headlineSelector)?.textContent?.trim(),
+    };
+  }, surface.headlineSelector);
+}
+
+async function clickLocale(page: import('puppeteer-core').Page, label: string) {
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle0' }),
+    page.evaluate((expectedLabel) => {
+      const button = [...document.querySelectorAll('.locale-switcher button')].find(
+        (candidate) => candidate.textContent?.trim() === expectedLabel,
+      );
+      if (!(button instanceof HTMLButtonElement)) {
+        throw new Error(`${expectedLabel} switch is missing`);
+      }
+      button.click();
+    }, label),
+  ]);
+}
+
+async function validateBrowserSwitch(surface: Surface) {
   const browser = await puppeteer.launch({
     executablePath: await findChromium(),
     headless: true,
@@ -110,109 +180,82 @@ async function validateBrowserSwitch() {
       if (/hydration failed|did not match|hydrating/i.test(text)) hydrationErrors.push(text);
     });
 
-    await page.goto(consoleUrl, { waitUntil: 'networkidle0' });
-    await page.waitForSelector('.auth-story h1');
-    const defaultDocument = await page.evaluate(() => ({
-      lang: document.documentElement.lang,
-      dir: document.documentElement.dir,
-      locale: document.documentElement.dataset.locale,
-      labels: [...document.querySelectorAll('.locale-switcher button')].map((button) =>
-        button.textContent?.trim(),
-      ),
-      headline: document.querySelector('.auth-story h1')?.textContent?.trim(),
-    }));
-    assert(defaultDocument.lang === 'en', 'hydrated default lang is not en');
-    assert(defaultDocument.dir === 'ltr', 'hydrated default dir is not ltr');
-    assert(defaultDocument.locale === 'en', 'hydrated default data-locale is not en');
-    assert(defaultDocument.labels.includes('Persian'), 'English switch label is missing');
+    await page.goto(surface.url, { waitUntil: 'networkidle0' });
+    await page.waitForSelector(surface.headlineSelector);
+    const defaultDocument = await documentState(page, surface);
+    assert(defaultDocument.lang === 'en', `${surface.name} hydrated default lang is not en`);
+    assert(defaultDocument.dir === 'ltr', `${surface.name} hydrated default dir is not ltr`);
+    assert(defaultDocument.locale === 'en', `${surface.name} hydrated data-locale is not en`);
+    assert(defaultDocument.labels.includes('Persian'), `${surface.name} Persian switch is missing`);
     assert(
-      defaultDocument.headline === 'Decision, execution, and memory in an auditable path.',
-      'English Console copy was not rendered',
+      defaultDocument.headline === surface.englishHeadline,
+      `${surface.name} English copy was not rendered`,
     );
 
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle0' }),
-      page.evaluate(() => {
-        const button = [...document.querySelectorAll('.locale-switcher button')].find(
-          (candidate) => candidate.textContent?.trim() === 'Persian',
-        );
-        if (!(button instanceof HTMLButtonElement)) throw new Error('Persian switch is missing');
-        button.click();
-      }),
-    ]);
-
-    const persianDocument = await page.evaluate(() => ({
-      lang: document.documentElement.lang,
-      dir: document.documentElement.dir,
-      locale: document.documentElement.dataset.locale,
-      labels: [...document.querySelectorAll('.locale-switcher button')].map((button) =>
-        button.textContent?.trim(),
-      ),
-      headline: document.querySelector('.auth-story h1')?.textContent?.trim(),
-    }));
-    assert(persianDocument.lang === 'fa', 'switched lang is not fa');
-    assert(persianDocument.dir === 'rtl', 'switched dir is not rtl');
-    assert(persianDocument.locale === 'fa', 'switched data-locale is not fa');
-    assert(persianDocument.labels.includes('انگلیسی'), 'Persian switch label is missing');
+    await clickLocale(page, 'Persian');
+    const persianDocument = await documentState(page, surface);
+    assert(persianDocument.lang === 'fa', `${surface.name} switched lang is not fa`);
+    assert(persianDocument.dir === 'rtl', `${surface.name} switched dir is not rtl`);
+    assert(persianDocument.locale === 'fa', `${surface.name} switched data-locale is not fa`);
+    assert(persianDocument.labels.includes('انگلیسی'), `${surface.name} English switch is missing`);
     assert(
-      persianDocument.headline === 'تصمیم، اجرا و حافظه در یک مسیر قابل ممیزی.',
-      'Persian Console copy was not rendered',
+      persianDocument.headline === surface.persianHeadline,
+      `${surface.name} Persian copy was not rendered`,
     );
 
     const persianCookie = (await page.cookies()).find((cookie) => cookie.name === localeCookieName);
-    assert(persianCookie?.value === 'fa', 'Persian locale cookie was not persisted');
-
+    assert(persianCookie?.value === 'fa', `${surface.name} Persian cookie was not persisted`);
     await page.reload({ waitUntil: 'networkidle0' });
     assert(
       (await page.evaluate(() => document.documentElement.lang)) === 'fa',
-      'Persian locale did not survive a full reload',
+      `${surface.name} Persian locale did not survive a full reload`,
     );
 
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle0' }),
-      page.evaluate(() => {
-        const button = [...document.querySelectorAll('.locale-switcher button')].find(
-          (candidate) => candidate.textContent?.trim() === 'انگلیسی',
-        );
-        if (!(button instanceof HTMLButtonElement)) throw new Error('English switch is missing');
-        button.click();
-      }),
-    ]);
-
-    const englishDocument = await page.evaluate(() => ({
-      lang: document.documentElement.lang,
-      dir: document.documentElement.dir,
-      locale: document.documentElement.dataset.locale,
-      headline: document.querySelector('.auth-story h1')?.textContent?.trim(),
-    }));
-    assert(englishDocument.lang === 'en', 'return switch lang is not en');
-    assert(englishDocument.dir === 'ltr', 'return switch dir is not ltr');
-    assert(englishDocument.locale === 'en', 'return switch data-locale is not en');
+    await clickLocale(page, 'انگلیسی');
+    const englishDocument = await documentState(page, surface);
+    assert(englishDocument.lang === 'en', `${surface.name} return switch lang is not en`);
+    assert(englishDocument.dir === 'ltr', `${surface.name} return switch dir is not ltr`);
+    assert(englishDocument.locale === 'en', `${surface.name} return data-locale is not en`);
     assert(
-      englishDocument.headline === 'Decision, execution, and memory in an auditable path.',
-      'English Console copy was not restored',
+      englishDocument.headline === surface.englishHeadline,
+      `${surface.name} English copy was not restored`,
     );
 
     const englishCookie = (await page.cookies()).find((cookie) => cookie.name === localeCookieName);
-    assert(englishCookie?.value === 'en', 'English locale cookie was not persisted');
-    assert(hydrationErrors.length === 0, `hydration errors: ${hydrationErrors.join(' | ')}`);
+    assert(englishCookie?.value === 'en', `${surface.name} English cookie was not persisted`);
+    assert(
+      hydrationErrors.length === 0,
+      `${surface.name} hydration errors: ${hydrationErrors.join(' | ')}`,
+    );
 
-    return { cookie: localeCookieName, fullReloadSwitches: 2, hydrationErrors: 0 };
+    return { surface: surface.name, fullReloadSwitches: 2, hydrationErrors: 0 };
   } finally {
     await browser.close();
   }
 }
 
 async function main() {
-  start('console', 'pnpm', ['--filter', '@casioplus/console-web', 'start'], {
-    PORT: '4173',
-    CASIOPLUS_CORE_API_URL: 'http://127.0.0.1:8080',
-    CASIOPLUS_FORGE_URL: 'http://127.0.0.1:4174',
-  });
-  await waitFor(consoleUrl);
+  for (const surface of surfaces) {
+    start(surface.name, 'pnpm', ['--filter', surface.packageName, 'start'], surface.env);
+  }
+  await Promise.all(surfaces.map((surface) => waitFor(surface.url)));
 
-  const [ssr, browser] = await Promise.all([validateSsrIsolation(), validateBrowserSwitch()]);
-  console.log(JSON.stringify({ status: 'ok', ssr, browser }));
+  const [ssr, browser] = await Promise.all([
+    Promise.all(surfaces.map(validateSsrIsolation)),
+    Promise.all(surfaces.map(validateBrowserSwitch)),
+  ]);
+  console.log(
+    JSON.stringify({
+      status: 'ok',
+      cookie: localeCookieName,
+      ssr,
+      browser,
+      totals: {
+        concurrentRequests: ssr.reduce((total, result) => total + result.concurrentRequests, 0),
+        fullReloadSwitches: browser.reduce((total, result) => total + result.fullReloadSwitches, 0),
+      },
+    }),
+  );
 }
 
 try {
