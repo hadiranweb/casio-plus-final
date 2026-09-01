@@ -1,3 +1,5 @@
+import { formatDateTime } from '@casioplus/i18n/formatters';
+import { m } from '@casioplus/i18n/messages';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouteLoaderData } from '@remix-run/react';
 import { CasioplusBrandMark } from '@casioplus/ui';
@@ -126,24 +128,24 @@ class ApiError extends Error {
 }
 
 function dateLabel(value: string) {
-  return new Intl.DateTimeFormat('fa-IR', {
+  return formatDateTime(value, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  });
 }
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
-    open: 'باز',
-    in_progress: 'در جریان',
-    completed: 'تکمیل‌شده',
-    draft: 'پیش‌نویس',
-    published: 'منتشرشده',
-    running: 'در حال اجرا',
-    succeeded: 'موفق',
-    failed: 'ناموفق',
+    open: m.console_home_status_open(),
+    in_progress: m.console_home_status_in_progress(),
+    completed: m.console_home_status_completed(),
+    draft: m.console_home_status_draft(),
+    published: m.console_home_status_published(),
+    running: m.console_home_status_running(),
+    succeeded: m.console_home_status_succeeded(),
+    failed: m.console_home_status_failed(),
   };
   return labels[status] ?? status;
 }
@@ -224,33 +226,30 @@ function AuthGateway({
     <main className="auth-stage">
       <section className="auth-story" aria-labelledby="auth-title">
         <CasioplusBrandMark className="auth-mark" />
-        <div className="auth-kicker">Casioplus / governed operations</div>
-        <h1 id="auth-title">تصمیم، اجرا و حافظه در یک مسیر قابل ممیزی.</h1>
-        <p>
-          Console نمای کنترل سازمان است. session در cookie امن نگه‌داری می‌شود و هیچ شناسهٔ tenant
-          از browser authority نمی‌گیرد.
-        </p>
+        <div className="auth-kicker">{m.console_home_auth_kicker()}</div>
+        <h1 id="auth-title">{m.console_home_auth_title()}</h1>
+        <p>{m.console_home_auth_desc()}</p>
         <div className="auth-principles">
           <span>
-            <ShieldCheck size={16} /> default-deny memory
+            <ShieldCheck size={16} /> {m.console_home_principle_default_deny_memory()}
           </span>
           <span>
-            <Network size={16} /> Core-only writer
+            <Network size={16} /> {m.console_home_principle_core_only_writer()}
           </span>
           <span>
-            <Gauge size={16} /> usage attribution
+            <Gauge size={16} /> {m.console_home_principle_usage_attribution()}
           </span>
         </div>
       </section>
       <form className="auth-form" onSubmit={submit}>
-        <div className="auth-tabs" role="group" aria-label="نوع ورود">
+        <div className="auth-tabs" role="group" aria-label={m.console_home_auth_type()}>
           <button
             type="button"
             className={mode === 'login' ? 'active' : ''}
             aria-pressed={mode === 'login'}
             onClick={() => setMode('login')}
           >
-            ورود
+            {m.console_home_auth_login()}
           </button>
           <button
             type="button"
@@ -258,17 +257,23 @@ function AuthGateway({
             aria-pressed={mode === 'register'}
             onClick={() => setMode('register')}
           >
-            ایجاد سازمان
+            {m.console_home_auth_register()}
           </button>
         </div>
         <div className="auth-heading">
-          <span>{mode === 'login' ? 'بازگشت به Console' : 'شروع کنترل‌پلین مشترک'}</span>
-          <strong>{mode === 'login' ? 'Session سازمانی' : 'Organization و Workspace اولیه'}</strong>
+          <span>
+            {mode === 'login' ? m.console_home_auth_return() : m.console_home_auth_start()}
+          </span>
+          <strong>
+            {mode === 'login'
+              ? m.console_home_auth_org_session()
+              : m.console_home_auth_initial_org()}
+          </strong>
         </div>
         {mode === 'register' && (
           <div className="form-pair">
             <label>
-              نام شما
+              {m.console_home_auth_your_name()}
               <input
                 required
                 value={displayName}
@@ -276,7 +281,7 @@ function AuthGateway({
               />
             </label>
             <label>
-              نام سازمان
+              {m.console_home_auth_org_name()}
               <input
                 required
                 value={organizationName}
@@ -284,7 +289,7 @@ function AuthGateway({
               />
             </label>
             <label>
-              کلید سازمان
+              {m.console_home_auth_org_key()}
               <input
                 required
                 dir="ltr"
@@ -302,7 +307,7 @@ function AuthGateway({
               />
             </label>
             <label>
-              کلید Workspace
+              {m.console_home_auth_workspace_key()}
               <input
                 required
                 dir="ltr"
@@ -314,7 +319,7 @@ function AuthGateway({
           </div>
         )}
         <label>
-          ایمیل
+          {m.console_home_auth_email()}
           <input
             required
             type="email"
@@ -325,7 +330,7 @@ function AuthGateway({
           />
         </label>
         <label>
-          رمز عبور
+          {m.console_home_auth_password()}
           <input
             required
             type="password"
@@ -342,10 +347,14 @@ function AuthGateway({
           </div>
         )}
         <button className="primary-action" disabled={pending} type="submit">
-          {pending ? 'در حال بررسی…' : mode === 'login' ? 'ورود به Console' : 'ساخت سازمان'}
+          {pending
+            ? m.console_home_auth_checking()
+            : mode === 'login'
+              ? m.console_home_auth_login_btn()
+              : m.console_home_auth_create_org()}
           <ArrowLeft size={16} />
         </button>
-        <small>رمز عبور حداقل ۱۲ نویسه است. session token در localStorage ذخیره نمی‌شود.</small>
+        <small>{m.console_home_auth_pwd_hint()}</small>
       </form>
     </main>
   );
@@ -465,7 +474,7 @@ export default function Console() {
       });
       setWorkTitle('');
       setWorkIntent('');
-      setNotice('Work ثبت شد و برای اجرای Flow آماده است.');
+      setNotice(m.console_home_work_created());
       if (session) await loadOperationalData(session);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'work_creation_failed');
@@ -519,7 +528,7 @@ export default function Console() {
     return (
       <main className="boot-screen">
         <CasioplusBrandMark />
-        <span>در حال برقراری مرز امن…</span>
+        <span>{m.console_home_boot_secure()}</span>
       </main>
     );
   }
@@ -531,32 +540,40 @@ export default function Console() {
 
   const metrics = [
     {
-      label: 'Work باز',
+      label: m.console_home_metric_open_work(),
       value: data.workItems.filter((item) => item.status !== 'completed').length,
       icon: Activity,
     },
     {
-      label: 'Flow منتشرشده',
+      label: m.console_home_metric_published_flow(),
       value: data.flows.filter((flow) => flow.status === 'published').length,
       icon: Workflow,
     },
     {
-      label: 'Run ناموفق',
+      label: m.console_home_metric_failed_run(),
       value: data.runs.filter((run) => run.status === 'failed').length,
       icon: CircleAlert,
     },
-    { label: 'یافتهٔ حافظه', value: data.memories.length, icon: BrainCircuit },
+    {
+      label: m.console_home_metric_memory_finding(),
+      value: data.memories.length,
+      icon: BrainCircuit,
+    },
   ];
 
   return (
     <div className="console-shell">
-      <button className="mobile-menu" onClick={() => setRailOpen(true)} aria-label="بازکردن ناوبری">
+      <button
+        className="mobile-menu"
+        onClick={() => setRailOpen(true)}
+        aria-label={m.console_home_nav_open()}
+      >
         <Menu size={20} />
       </button>
       {railOpen && (
         <button
           className="rail-scrim"
-          aria-label="بستن ناوبری"
+          aria-label={m.console_home_nav_close()}
           onClick={() => setRailOpen(false)}
         />
       )}
@@ -567,61 +584,61 @@ export default function Console() {
             <strong>Casioplus</strong>
             <span>Console</span>
           </div>
-          <button onClick={() => setRailOpen(false)} aria-label="بستن">
+          <button onClick={() => setRailOpen(false)} aria-label={m.console_home_close()}>
             <X size={18} />
           </button>
         </div>
         <a className="scope-card" href="#settings" onClick={() => setRailOpen(false)}>
           <span className="live-dot" />
           <div>
-            <small>Workspace</small>
+            <small>{m.shared_workspace()}</small>
             <strong>{scope?.workspaceName ?? '—'}</strong>
             <span>{scope?.organizationName ?? '—'}</span>
           </div>
           <ChevronLeft size={15} />
         </a>
-        <nav aria-label="ناوبری Console">
-          <span className="nav-label">عملیات</span>
+        <nav aria-label={m.console_home_nav_label()}>
+          <span className="nav-label">{m.console_home_nav_ops()}</span>
           <a className="rail-link active" href="#overview">
             <LayoutDashboard size={17} />
-            نمای کلی
+            {m.console_home_nav_overview()}
           </a>
           <a className="rail-link" href="#decisions">
             <Activity size={17} />
-            صف تصمیم
+            {m.console_home_nav_decision_queue()}
           </a>
           <a className="rail-link" href="#memory">
             <BrainCircuit size={17} />
-            حافظه
+            {m.console_home_nav_memory()}
           </a>
           <a className="rail-link" href="#memory-graph">
             <Network size={17} />
-            نقشهٔ حافظه
+            {m.console_home_nav_memory_graph()}
           </a>
           <a className="rail-link" href="#economics">
             <WalletCards size={17} />
-            اقتصاد مصرف
+            {m.console_home_nav_economics()}
           </a>
-          <span className="nav-label">کنترل</span>
+          <span className="nav-label">{m.console_home_nav_control()}</span>
           <a className="rail-link" href="#governance">
             <ShieldCheck size={17} />
-            Governance
+            {m.console_home_nav_governance()}
           </a>
           <a className="rail-link" href="#settings">
             <Settings2 size={17} />
-            تنظیمات
+            {m.console_home_nav_settings()}
           </a>
         </nav>
         <div className="rail-foot">
           <div className="core-state">
             <span className="live-dot" />
             <div>
-              <strong>Core API</strong>
-              <small>session معتبر</small>
+              <strong>{m.console_home_core_api()}</strong>
+              <small>{m.console_home_valid_session()}</small>
             </div>
           </div>
           <a href={rootData?.forgeUrl ?? 'http://localhost:5174'}>
-            رفتن به Forge <ArrowUpLeft size={14} />
+            {m.console_home_go_forge()} <ArrowUpLeft size={14} />
           </a>
         </div>
       </aside>
@@ -635,7 +652,7 @@ export default function Console() {
           <div className="topbar-actions">
             <button className="command-trigger" onClick={() => setCommandOpen(true)}>
               <Search size={15} />
-              جست‌وجو و اقدام <kbd>⌘ K</kbd>
+              {m.console_home_search_action()} <kbd>⌘ K</kbd>
             </button>
             <div className="identity-chip">
               <div>{session.user.displayName.slice(0, 1)}</div>
@@ -644,7 +661,7 @@ export default function Console() {
                 <small>{session.context.role}</small>
               </span>
             </div>
-            <button className="icon-control" onClick={logout} aria-label="خروج">
+            <button className="icon-control" onClick={logout} aria-label={m.console_home_logout()}>
               <LogOut size={17} />
             </button>
           </div>
@@ -653,13 +670,13 @@ export default function Console() {
         <div className="console-content">
           <section className="signal-header">
             <div>
-              <span className="section-code">CONTROL / NOW</span>
-              <h1>تصمیم‌های امروز، با تبار کامل.</h1>
-              <p>صف کار، اجرای Flow، حافظهٔ promoted و اقتصاد مصرف را در scope فعلی دنبال کنید.</p>
+              <span className="section-code">{m.console_home_control_now()}</span>
+              <h1>{m.console_home_today_decisions()}</h1>
+              <p>{m.console_home_today_desc()}</p>
             </div>
             <a className="primary-action" href="#new-work">
               <Plus size={16} />
-              Work جدید
+              {m.console_home_new_work()}
             </a>
           </section>
 
@@ -667,18 +684,18 @@ export default function Console() {
             <div className="inline-alert error">
               <CircleAlert size={16} />
               <span>{error}</span>
-              <button onClick={() => setError('')}>بستن</button>
+              <button onClick={() => setError('')}>{m.console_home_close()}</button>
             </div>
           )}
           {notice && (
             <div className="inline-alert success">
               <CheckCircle2 size={16} />
               <span>{notice}</span>
-              <button onClick={() => setNotice('')}>بستن</button>
+              <button onClick={() => setNotice('')}>{m.console_home_close()}</button>
             </div>
           )}
 
-          <section className="signal-strip" aria-label="شاخص‌های واقعی Workspace">
+          <section className="signal-strip" aria-label={m.console_home_workspace_metrics()}>
             {metrics.map(({ label, value, icon: Icon }) => (
               <article key={label}>
                 <Icon size={16} />
@@ -692,16 +709,16 @@ export default function Console() {
             <article className="surface queue-surface">
               <div className="surface-head">
                 <div>
-                  <span>DECISION QUEUE</span>
-                  <h2>Workهای نیازمند حرکت</h2>
+                  <span>{m.console_home_decision_queue_overline()}</span>
+                  <h2>{m.console_home_work_needs_action()}</h2>
                 </div>
                 <b>{data.workItems.length}</b>
               </div>
               {data.workItems.length === 0 ? (
                 <div className="empty-state">
                   <FileJson2 size={24} />
-                  <strong>صف خالی است</strong>
-                  <span>اولین Work را از فرم کنار صفحه ثبت کنید.</span>
+                  <strong>{m.console_home_queue_empty()}</strong>
+                  <span>{m.console_home_queue_empty_desc()}</span>
                 </div>
               ) : (
                 <div className="data-list">
@@ -710,7 +727,7 @@ export default function Console() {
                       <span className={`status-mark ${work.status}`} />
                       <div>
                         <strong>{work.title}</strong>
-                        <span>{work.intent || 'بدون context تکمیلی'}</span>
+                        <span>{work.intent || m.console_home_no_extra_context()}</span>
                       </div>
                       <div>
                         <b>{statusLabel(work.status)}</b>
@@ -726,16 +743,16 @@ export default function Console() {
             <article className="surface timeline-surface">
               <div className="surface-head">
                 <div>
-                  <span>RUN TIMELINE</span>
-                  <h2>آخرین اجراها</h2>
+                  <span>{m.console_home_run_timeline_overline()}</span>
+                  <h2>{m.console_home_last_runs()}</h2>
                 </div>
-                <span className="live-label">آخرین داده</span>
+                <span className="live-label">{m.console_home_last_data()}</span>
               </div>
               {data.runs.length === 0 ? (
                 <div className="empty-state">
                   <Activity size={24} />
-                  <strong>اجرایی ثبت نشده</strong>
-                  <span>پس از اجرای Flow، رخدادهای واقعی اینجا ظاهر می‌شوند.</span>
+                  <strong>{m.console_home_no_runs()}</strong>
+                  <span>{m.console_home_no_runs_desc()}</span>
                 </div>
               ) : (
                 <div className="timeline-list">
@@ -754,7 +771,7 @@ export default function Console() {
               {activeFlow && (
                 <div className="selected-flow">
                   <Workflow size={15} />
-                  <span>Flow فعال</span>
+                  <span>{m.console_home_active_flow()}</span>
                   <strong>{activeFlow.name}</strong>
                 </div>
               )}
@@ -765,38 +782,38 @@ export default function Console() {
             <form className="surface work-form" id="new-work" onSubmit={createWorkItem}>
               <div className="surface-head">
                 <div>
-                  <span>NEW WORK</span>
-                  <h2>تعریف مسئله</h2>
+                  <span>{m.console_home_new_work_overline()}</span>
+                  <h2>{m.console_home_define_problem()}</h2>
                 </div>
-                <span>۰۱ / ۰۲</span>
+                <span>{m.console_home_setup_progress()}</span>
               </div>
               <label>
-                عنوان مسئله
+                {m.console_home_problem_title()}
                 <input
                   value={workTitle}
                   onChange={(event) => setWorkTitle(event.target.value)}
-                  placeholder="یک مسئلهٔ تصمیم‌پذیر"
+                  placeholder={m.console_home_problem_placeholder()}
                 />
               </label>
               <label>
-                نتیجهٔ مورد انتظار
+                {m.console_home_expected_result()}
                 <textarea
                   value={workIntent}
                   onChange={(event) => setWorkIntent(event.target.value)}
-                  placeholder="چه تصمیمی باید با شواهد بهتر گرفته شود؟"
+                  placeholder={m.console_home_expected_placeholder()}
                 />
               </label>
               <button className="primary-action" type="submit" disabled={!workTitle.trim()}>
                 <Plus size={16} />
-                ثبت Work
+                {m.console_home_submit_work()}
               </button>
             </form>
 
             <section className="surface memory-surface" id="memory">
               <div className="surface-head">
                 <div>
-                  <span>GOVERNED MEMORY</span>
-                  <h2>جست‌وجوی promoted knowledge</h2>
+                  <span>{m.console_home_governed_memory_overline()}</span>
+                  <h2>{m.console_home_search_knowledge()}</h2>
                 </div>
                 <BrainCircuit size={20} />
               </div>
@@ -805,23 +822,20 @@ export default function Console() {
                 <input
                   value={memoryQuery}
                   onChange={(event) => setMemoryQuery(event.target.value)}
-                  placeholder="یافته، تصمیم یا الگو…"
+                  placeholder={m.console_home_search_placeholder()}
                 />
-                <button aria-label="جست‌وجو">
+                <button aria-label={m.console_home_search()}>
                   <ArrowLeft size={16} />
                 </button>
               </form>
               {!searched ? (
                 <div className="memory-guide">
                   <ShieldCheck size={20} />
-                  <span>
-                    فقط رکوردهای معتبر پس از grant، purpose، sensitivity و promotion بازیابی
-                    می‌شوند.
-                  </span>
+                  <span>{m.console_home_memory_guide()}</span>
                 </div>
               ) : data.memories.length === 0 ? (
                 <div className="empty-state compact">
-                  <strong>نتیجه‌ای در scope فعلی نیست</strong>
+                  <strong>{m.console_home_no_results()}</strong>
                 </div>
               ) : (
                 <div className="memory-results">
@@ -831,7 +845,9 @@ export default function Console() {
                       <strong>{memory.title}</strong>
                       <p>
                         {String(
-                          memory.content.finding ?? memory.content.summary ?? 'رکورد governed',
+                          memory.content.finding ??
+                            memory.content.summary ??
+                            m.console_home_governed_record(),
                         )}
                       </p>
                       <small>
@@ -847,54 +863,61 @@ export default function Console() {
           <section className="surface memory-graph-surface" id="memory-graph">
             <div className="surface-head memory-graph-heading">
               <div>
-                <span>MEMORY / LINEAGE</span>
-                <h2>گراف سه‌بعدی حافظهٔ سازمانی</h2>
-                <p>
-                  فقط حافظهٔ promoted و معتبر در namespaceهای مجاز، همراه با Claim، Semantic Record،
-                  Run و Flow نمایش داده می‌شود.
-                </p>
+                <span>{m.console_home_memory_lineage_overline()}</span>
+                <h2>{m.console_home_3d_graph()}</h2>
+                <p>{m.console_home_3d_graph_desc()}</p>
               </div>
               <button
                 className="secondary-action"
                 type="button"
+                data-testid="load-memory-graph"
                 onClick={() => void loadMemoryGraph()}
                 disabled={graphLoading}
               >
                 <Network size={16} />
                 {graphLoading
-                  ? 'در حال بارگذاری…'
+                  ? m.console_home_loading()
                   : memoryGraph
-                    ? 'تازه‌سازی گراف'
-                    : 'بارگذاری گراف'}
+                    ? m.console_home_refresh_graph()
+                    : m.console_home_load_graph()}
               </button>
             </div>
             {!memoryGraph ? (
               <div className="memory-graph-placeholder">
                 <Network size={26} />
-                <strong>گراف فقط با درخواست شما بارگذاری می‌شود</strong>
-                <span>Three.js و دادهٔ graph در بار اولیهٔ Console دانلود نمی‌شوند.</span>
+                <strong>{m.console_home_graph_on_demand()}</strong>
+                <span>{m.console_home_graph_no_download()}</span>
               </div>
             ) : memoryGraph.nodes.length === 0 ? (
               <div className="empty-state">
                 <BrainCircuit size={24} />
-                <strong>حافظهٔ promoted در scope فعلی وجود ندارد</strong>
-                <span>پس از review و promotion، تبار واقعی رکوردها اینجا نمایش داده می‌شود.</span>
+                <strong>{m.console_home_no_promoted_memory()}</strong>
+                <span>{m.console_home_promoted_memory_desc()}</span>
               </div>
             ) : hydrated ? (
               <Suspense
-                fallback={<div className="memory-graph-placeholder">در حال آماده‌سازی WebGL…</div>}
+                fallback={
+                  <div className="memory-graph-placeholder">{m.console_home_preparing_webgl()}</div>
+                }
               >
                 <MemoryGraph3D data={memoryGraph} />
               </Suspense>
             ) : (
-              <div className="memory-graph-placeholder">گراف پس از hydration فعال می‌شود.</div>
+              <div className="memory-graph-placeholder">
+                {m.console_home_graph_after_hydration()}
+              </div>
             )}
             {memoryGraph && (
               <footer className="memory-graph-governance">
-                <span>{memoryGraph.governance.allowedNamespaceIds.length} namespace مجاز</span>
-                <span>{memoryGraph.governance.appliedGrantIds.length} grant اعمال‌شده</span>
-                <span>promoted only</span>
-                <span>expired excluded</span>
+                <span>
+                  {memoryGraph.governance.allowedNamespaceIds.length}{' '}
+                  {m.console_home_allowed_namespace()}
+                </span>
+                <span>
+                  {memoryGraph.governance.appliedGrantIds.length} {m.console_home_applied_grant()}
+                </span>
+                <span>{m.console_home_promoted_only()}</span>
+                <span>{m.console_home_expired_excluded()}</span>
               </footer>
             )}
           </section>
@@ -903,7 +926,9 @@ export default function Console() {
             <Suspense
               fallback={
                 <section className="organization-control" id="settings">
-                  <div className="memory-graph-placeholder">در حال آماده‌سازی کنترل سازمان…</div>
+                  <div className="memory-graph-placeholder">
+                    {m.console_home_preparing_org_control()}
+                  </div>
                 </section>
               }
             >
@@ -926,7 +951,7 @@ export default function Console() {
               fallback={
                 <section className="governance-control" id="governance">
                   <div className="memory-graph-placeholder">
-                    در حال آماده‌سازی Governance Control…
+                    {m.console_home_preparing_gov_control()}
                   </div>
                 </section>
               }
@@ -954,34 +979,34 @@ export default function Console() {
             className="command-panel"
             role="dialog"
             aria-modal="true"
-            aria-label="فرمان‌های Console"
+            aria-label={m.console_home_console_commands()}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div>
               <Command size={17} />
-              <input autoFocus placeholder="فرمان یا بخش را جست‌وجو کنید…" />
+              <input autoFocus placeholder={m.console_home_search_command()} />
               <kbd>Esc</kbd>
             </div>
             <nav>
               <a href="#new-work" onClick={() => setCommandOpen(false)}>
                 <Plus size={16} />
                 <span>
-                  <strong>Work جدید</strong>
-                  <small>تعریف مسئله در Workspace فعلی</small>
+                  <strong>{m.console_home_new_work()}</strong>
+                  <small>{m.console_home_define_problem_ws()}</small>
                 </span>
               </a>
               <a href="#memory" onClick={() => setCommandOpen(false)}>
                 <BrainCircuit size={16} />
                 <span>
-                  <strong>جست‌وجوی حافظه</strong>
-                  <small>purpose محدود به Console</small>
+                  <strong>{m.console_home_search_memory()}</strong>
+                  <small>{m.console_home_purpose_limited()}</small>
                 </span>
               </a>
               <a href={rootData?.forgeUrl ?? 'http://localhost:5174'}>
                 <Workflow size={16} />
                 <span>
-                  <strong>بازکردن Forge</strong>
-                  <small>ساخت و انتشار Flow</small>
+                  <strong>{m.console_home_open_forge()}</strong>
+                  <small>{m.console_home_build_flow()}</small>
                 </span>
               </a>
             </nav>

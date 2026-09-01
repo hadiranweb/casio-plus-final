@@ -111,6 +111,7 @@ async function validateBrowserSwitch() {
     });
 
     await page.goto(consoleUrl, { waitUntil: 'networkidle0' });
+    await page.waitForSelector('.auth-story h1');
     const defaultDocument = await page.evaluate(() => ({
       lang: document.documentElement.lang,
       dir: document.documentElement.dir,
@@ -118,11 +119,16 @@ async function validateBrowserSwitch() {
       labels: [...document.querySelectorAll('.locale-switcher button')].map((button) =>
         button.textContent?.trim(),
       ),
+      headline: document.querySelector('.auth-story h1')?.textContent?.trim(),
     }));
     assert(defaultDocument.lang === 'en', 'hydrated default lang is not en');
     assert(defaultDocument.dir === 'ltr', 'hydrated default dir is not ltr');
     assert(defaultDocument.locale === 'en', 'hydrated default data-locale is not en');
     assert(defaultDocument.labels.includes('Persian'), 'English switch label is missing');
+    assert(
+      defaultDocument.headline === 'Decision, execution, and memory in an auditable path.',
+      'English Console copy was not rendered',
+    );
 
     await Promise.all([
       page.waitForNavigation({ waitUntil: 'networkidle0' }),
@@ -142,11 +148,16 @@ async function validateBrowserSwitch() {
       labels: [...document.querySelectorAll('.locale-switcher button')].map((button) =>
         button.textContent?.trim(),
       ),
+      headline: document.querySelector('.auth-story h1')?.textContent?.trim(),
     }));
     assert(persianDocument.lang === 'fa', 'switched lang is not fa');
     assert(persianDocument.dir === 'rtl', 'switched dir is not rtl');
     assert(persianDocument.locale === 'fa', 'switched data-locale is not fa');
     assert(persianDocument.labels.includes('انگلیسی'), 'Persian switch label is missing');
+    assert(
+      persianDocument.headline === 'تصمیم، اجرا و حافظه در یک مسیر قابل ممیزی.',
+      'Persian Console copy was not rendered',
+    );
 
     const persianCookie = (await page.cookies()).find((cookie) => cookie.name === localeCookieName);
     assert(persianCookie?.value === 'fa', 'Persian locale cookie was not persisted');
@@ -172,10 +183,15 @@ async function validateBrowserSwitch() {
       lang: document.documentElement.lang,
       dir: document.documentElement.dir,
       locale: document.documentElement.dataset.locale,
+      headline: document.querySelector('.auth-story h1')?.textContent?.trim(),
     }));
     assert(englishDocument.lang === 'en', 'return switch lang is not en');
     assert(englishDocument.dir === 'ltr', 'return switch dir is not ltr');
     assert(englishDocument.locale === 'en', 'return switch data-locale is not en');
+    assert(
+      englishDocument.headline === 'Decision, execution, and memory in an auditable path.',
+      'English Console copy was not restored',
+    );
 
     const englishCookie = (await page.cookies()).find((cookie) => cookie.name === localeCookieName);
     assert(englishCookie?.value === 'en', 'English locale cookie was not persisted');

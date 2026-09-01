@@ -102,9 +102,7 @@ async function main() {
       await page.goto(url, { waitUntil: 'networkidle0' });
       if (loadGraph) {
         await page.evaluate(() => {
-          const button = [...document.querySelectorAll('button')].find((candidate) =>
-            candidate.textContent?.includes('بارگذاری گراف'),
-          );
+          const button = document.querySelector('[data-testid="load-memory-graph"]');
           if (!(button instanceof HTMLButtonElement))
             throw new Error('graph load control is missing');
           button.click();

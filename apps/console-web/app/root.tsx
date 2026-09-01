@@ -32,13 +32,13 @@ function LocaleSwitcher({ locale }: { locale: Locale }) {
   }
 
   return (
-    <nav className="locale-switcher" aria-label={m.gentle_green_owl()}>
-      <span>{m.calm_amber_falcon()}</span>
+    <nav className="locale-switcher" aria-label={m.shared_locale_switch_aria()}>
+      <span>{m.shared_locale_language()}</span>
       <button type="button" aria-pressed={locale === 'en'} onClick={() => changeLocale('en')}>
-        {m.quiet_silver_otter()}
+        {m.shared_locale_english()}
       </button>
       <button type="button" aria-pressed={locale === 'fa'} onClick={() => changeLocale('fa')}>
-        {m.bright_violet_deer()}
+        {m.shared_locale_persian()}
       </button>
     </nav>
   );

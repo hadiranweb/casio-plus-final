@@ -1,3 +1,4 @@
+import { m } from '@casioplus/i18n/messages';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 
@@ -236,15 +237,15 @@ export default function MemoryGraph3D({ data }: { data: MemoryGraphData }) {
         ref={mountRef}
         role="group"
         tabIndex={0}
-        aria-label="گراف سه‌بعدی حافظه؛ با کلیدهای جهت‌دار بچرخانید و با مثبت و منفی بزرگ‌نمایی کنید"
+        aria-label={m.console_memory_graph_aria_label()}
       />
       <div className="memory-graph-controls">
         <button type="button" onClick={() => resetRef.current()}>
-          بازنشانی نما
+          {m.console_memory_graph_reset_view()}
         </button>
-        <span>{data.nodes.length} گره</span>
-        <span>{data.edges.length} رابطه</span>
-        <span className="memory-graph-hint">برای چرخش بکشید؛ برای zoom اسکرول کنید.</span>
+        <span>{m.console_memory_graph_node_count({ count: data.nodes.length })}</span>
+        <span>{m.console_memory_graph_edge_count({ count: data.edges.length })}</span>
+        <span className="memory-graph-hint">{m.console_memory_graph_hint()}</span>
       </div>
       <aside className="memory-graph-detail" aria-live="polite">
         {selected ? (
@@ -252,14 +253,19 @@ export default function MemoryGraph3D({ data }: { data: MemoryGraphData }) {
             <span>{selected.entityType.replace('_', ' ')}</span>
             <strong>{selected.label}</strong>
             <small>
-              {selected.kind ?? selected.sensitivity ?? `شناسه ${selected.entityId.slice(0, 8)}`}
+              {selected.kind ??
+                selected.sensitivity ??
+                m.console_memory_graph_id({ id: selected.entityId.slice(0, 8) })}
             </small>
           </>
         ) : (
-          <span>برای دیدن جزئیات، یک گره را انتخاب کنید.</span>
+          <span>{m.console_memory_graph_select_node_hint()}</span>
         )}
       </aside>
-      <nav className="memory-graph-node-list" aria-label="گره‌های قابل انتخاب">
+      <nav
+        className="memory-graph-node-list"
+        aria-label={m.console_memory_graph_selectable_nodes()}
+      >
         {data.nodes.slice(0, 24).map((node) => (
           <button
             type="button"

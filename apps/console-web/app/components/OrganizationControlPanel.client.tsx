@@ -1,3 +1,5 @@
+import { formatDateTime } from '@casioplus/i18n/formatters';
+import { m } from '@casioplus/i18n/messages';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Building2,
@@ -61,12 +63,12 @@ type Invitation = {
 };
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('fa-IR', {
+  return formatDateTime(value, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  });
 }
 
 export default function OrganizationControlPanel({
@@ -168,7 +170,7 @@ export default function OrganizationControlPanel({
         body: JSON.stringify({ organizationId, workspaceId }),
       });
       setLatestInviteLink('');
-      onNotice('Context فعال با session جدید تغییر کرد.');
+      onNotice(m.console_organization_context_changed());
       await onContextChanged();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'context_switch_failed');
@@ -191,7 +193,7 @@ export default function OrganizationControlPanel({
       setOrganizationSlug('');
       setOrganizationWorkspaceName('');
       setOrganizationWorkspaceSlug('');
-      onNotice('Organization ساخته شد و context آن با session جدید فعال است.');
+      onNotice(m.console_organization_created());
       await onContextChanged();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'organization_creation_failed');
@@ -207,7 +209,7 @@ export default function OrganizationControlPanel({
       });
       setWorkspaceName('');
       setWorkspaceSlug('');
-      onNotice('Workspace ساخته شد و در scopeهای قابل انتخاب قرار گرفت.');
+      onNotice(m.console_organization_workspace_created());
       await Promise.all([loadControlData(), onContextChanged()]);
     } catch (error) {
       onError(error instanceof Error ? error.message : 'workspace_creation_failed');
@@ -234,7 +236,7 @@ export default function OrganizationControlPanel({
       const link = `${window.location.origin}/?invite=${encodeURIComponent(result.token)}`;
       setLatestInviteLink(link);
       setInviteEmail('');
-      onNotice('دعوت ایجاد شد. لینک فقط در همین لحظه نمایش داده می‌شود.');
+      onNotice(m.console_organization_invitation_created());
       await loadControlData();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'invitation_creation_failed');
@@ -244,7 +246,7 @@ export default function OrganizationControlPanel({
   const copyInviteLink = async () => {
     try {
       await navigator.clipboard.writeText(latestInviteLink);
-      onNotice('لینک دعوت در clipboard کپی شد.');
+      onNotice(m.console_organization_invite_link_copied());
     } catch {
       onError('clipboard_unavailable');
     }
@@ -259,7 +261,7 @@ export default function OrganizationControlPanel({
       });
       window.history.replaceState({}, '', window.location.pathname);
       setAcceptToken('');
-      onNotice('دعوت پذیرفته شد و context جدید فعال است.');
+      onNotice(m.console_organization_invitation_accepted());
       await onContextChanged();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'invitation_acceptance_failed');
@@ -275,7 +277,11 @@ export default function OrganizationControlPanel({
         method: 'PATCH',
         body: JSON.stringify(update),
       });
-      onNotice(update.status === 'revoked' ? 'دسترسی عضو لغو شد.' : 'نقش عضو به‌روزرسانی شد.');
+      onNotice(
+        update.status === 'revoked'
+          ? m.console_organization_member_access_revoked()
+          : m.console_organization_member_role_updated(),
+      );
       await loadControlData();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'member_update_failed');
@@ -287,7 +293,7 @@ export default function OrganizationControlPanel({
       await requestJson(apiBase, `/api/v1/invitations/${invitationId}/revoke`, csrfToken, {
         method: 'POST',
       });
-      onNotice('دعوت pending لغو شد.');
+      onNotice(m.console_organization_invitation_revoked());
       await loadControlData();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'invitation_revoke_failed');
@@ -302,13 +308,13 @@ export default function OrganizationControlPanel({
     >
       <header className="organization-control-heading">
         <div>
-          <span>CONTROL PLANE / ORGANIZATION</span>
-          <h2 id="organization-control-title">سازمان، Workspace و دسترسی‌ها</h2>
-          <p>تمام تغییرها در Core ثبت، authorize و audit می‌شوند.</p>
+          <span>{m.console_organization_control_plane_label()}</span>
+          <h2 id="organization-control-title">{m.console_organization_title()}</h2>
+          <p>{m.console_organization_subtitle()}</p>
         </div>
         <button className="secondary-action" type="button" onClick={() => void loadControlData()}>
           <RefreshCw size={15} />
-          {loading ? 'در حال همگام‌سازی…' : 'تازه‌سازی'}
+          {loading ? m.console_organization_syncing() : m.console_organization_refresh()}
         </button>
       </header>
 
@@ -317,12 +323,12 @@ export default function OrganizationControlPanel({
           <div className="control-block-title">
             <Building2 size={18} />
             <div>
-              <strong>Context فعال</strong>
-              <span>Organization و Workspace از membership سرور resolve می‌شوند.</span>
+              <strong>{m.console_organization_active_context()}</strong>
+              <span>{m.console_organization_context_desc()}</span>
             </div>
           </div>
           <label>
-            Organization / Workspace
+            {m.console_organization_select_label()}
             <select
               value={
                 currentScope ? `${currentScope.organizationId}:${currentScope.workspaceId}` : ''
@@ -345,15 +351,15 @@ export default function OrganizationControlPanel({
           </label>
           <dl>
             <div>
-              <dt>Organization</dt>
+              <dt>{m.console_organization_organization_label()}</dt>
               <dd>{currentScope?.organizationName ?? '—'}</dd>
             </div>
             <div>
-              <dt>Workspace</dt>
+              <dt>{m.console_organization_workspace_label()}</dt>
               <dd>{currentScope?.workspaceName ?? '—'}</dd>
             </div>
             <div>
-              <dt>Role</dt>
+              <dt>{m.console_organization_role_label()}</dt>
               <dd>{currentRole}</dd>
             </div>
           </dl>
@@ -363,12 +369,12 @@ export default function OrganizationControlPanel({
           <div className="control-block-title">
             <Building2 size={18} />
             <div>
-              <strong>Organization جدید</strong>
-              <span>یک namespace خصوصی و Workspace اولیه به‌صورت اتمیک ساخته می‌شود.</span>
+              <strong>{m.console_organization_new_organization()}</strong>
+              <span>{m.console_organization_new_org_desc()}</span>
             </div>
           </div>
           <label>
-            نام Organization
+            {m.console_organization_name_label()}
             <input
               required
               value={organizationName}
@@ -377,7 +383,7 @@ export default function OrganizationControlPanel({
           </label>
           <div className="control-form-row">
             <label>
-              کلید Organization
+              {m.console_organization_slug_label()}
               <input
                 required
                 dir="ltr"
@@ -387,7 +393,7 @@ export default function OrganizationControlPanel({
               />
             </label>
             <label>
-              Workspace اولیه
+              {m.console_organization_initial_workspace_label()}
               <input
                 required
                 value={organizationWorkspaceName}
@@ -396,7 +402,7 @@ export default function OrganizationControlPanel({
             </label>
           </div>
           <label>
-            کلید Workspace اولیه
+            {m.console_organization_initial_workspace_slug_label()}
             <input
               required
               dir="ltr"
@@ -406,7 +412,7 @@ export default function OrganizationControlPanel({
             />
           </label>
           <button className="secondary-action" type="submit">
-            ساخت Organization
+            {m.console_organization_create_button()}
           </button>
         </form>
 
@@ -414,12 +420,12 @@ export default function OrganizationControlPanel({
           <div className="control-block-title">
             <CheckCircle2 size={18} />
             <div>
-              <strong>پذیرش دعوت</strong>
-              <span>توکن فقط برای ایمیل همان حساب معتبر است.</span>
+              <strong>{m.console_organization_accept_invite()}</strong>
+              <span>{m.console_organization_accept_invite_desc()}</span>
             </div>
           </div>
           <label>
-            Invitation token
+            {m.console_organization_invitation_token()}
             <input
               required
               dir="ltr"
@@ -429,7 +435,7 @@ export default function OrganizationControlPanel({
             />
           </label>
           <button className="secondary-action" disabled={acceptToken.length < 32} type="submit">
-            پذیرش و تغییر context
+            {m.console_organization_accept_button()}
           </button>
         </form>
 
@@ -438,12 +444,12 @@ export default function OrganizationControlPanel({
             <div className="control-block-title">
               <Building2 size={18} />
               <div>
-                <strong>Workspace جدید</strong>
-                <span>عضویت فعلی با همان role به Workspace افزوده می‌شود.</span>
+                <strong>{m.console_organization_new_workspace()}</strong>
+                <span>{m.console_organization_new_workspace_desc()}</span>
               </div>
             </div>
             <label>
-              نام
+              {m.console_organization_workspace_name_label()}
               <input
                 required
                 value={workspaceName}
@@ -451,7 +457,7 @@ export default function OrganizationControlPanel({
               />
             </label>
             <label>
-              کلید
+              {m.console_organization_workspace_slug_label()}
               <input
                 required
                 dir="ltr"
@@ -461,7 +467,7 @@ export default function OrganizationControlPanel({
               />
             </label>
             <button className="secondary-action" type="submit">
-              ساخت Workspace
+              {m.console_organization_create_workspace_button()}
             </button>
           </form>
         )}
@@ -471,12 +477,12 @@ export default function OrganizationControlPanel({
             <div className="control-block-title">
               <MailPlus size={18} />
               <div>
-                <strong>دعوت عضو</strong>
-                <span>لینک خام فقط یک بار پس از ایجاد نمایش داده می‌شود.</span>
+                <strong>{m.console_organization_invite_member()}</strong>
+                <span>{m.console_organization_invite_desc()}</span>
               </div>
             </div>
             <label>
-              ایمیل
+              {m.console_organization_email_label()}
               <input
                 required
                 type="email"
@@ -487,7 +493,7 @@ export default function OrganizationControlPanel({
             </label>
             <div className="control-form-row">
               <label>
-                Workspace
+                {m.console_organization_workspace_label()}
                 <select
                   required
                   value={inviteWorkspaceId}
@@ -501,24 +507,24 @@ export default function OrganizationControlPanel({
                 </select>
               </label>
               <label>
-                نقش
+                {m.console_organization_role_label()}
                 <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value)}>
-                  <option value="admin">admin</option>
-                  <option value="editor">editor</option>
-                  <option value="reviewer">reviewer</option>
-                  <option value="viewer">viewer</option>
-                  <option value="consumer">consumer</option>
+                  <option value="admin">{m.shared_role_admin()}</option>
+                  <option value="editor">{m.shared_role_editor()}</option>
+                  <option value="reviewer">{m.shared_role_reviewer()}</option>
+                  <option value="viewer">{m.shared_role_viewer()}</option>
+                  <option value="consumer">{m.shared_role_consumer()}</option>
                 </select>
               </label>
             </div>
             <button className="secondary-action" type="submit">
-              ایجاد دعوت
+              {m.console_organization_create_invite_button()}
             </button>
             {latestInviteLink && (
               <div className="invite-delivery" role="status">
                 <code dir="ltr">{latestInviteLink}</code>
                 <button type="button" onClick={() => void copyInviteLink()}>
-                  <Clipboard size={14} /> کپی لینک
+                  <Clipboard size={14} /> {m.console_organization_copy_link()}
                 </button>
               </div>
             )}
@@ -532,22 +538,29 @@ export default function OrganizationControlPanel({
             <div className="control-block-title">
               <Users size={18} />
               <div>
-                <strong>اعضا</strong>
-                <span>{members.length} عضویت سازمانی</span>
+                <strong>{m.console_organization_members_title()}</strong>
+                <span>
+                  {members.length} {m.console_organization_members_count()}
+                </span>
               </div>
             </div>
             {members.length === 0 ? (
-              <div className="control-empty">عضوی ثبت نشده است.</div>
+              <div className="control-empty">{m.console_organization_no_members()}</div>
             ) : (
-              <div className="control-table" role="region" aria-label="اعضای سازمان" tabIndex={0}>
+              <div
+                className="control-table"
+                role="region"
+                aria-label={m.console_organization_members_aria()}
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
-                      <th>عضو</th>
-                      <th>Workspaceها</th>
-                      <th>نقش</th>
-                      <th>وضعیت</th>
-                      <th>اقدام</th>
+                      <th>{m.console_organization_th_member()}</th>
+                      <th>{m.console_organization_th_workspaces()}</th>
+                      <th>{m.console_organization_role_label()}</th>
+                      <th>{m.console_organization_th_status()}</th>
+                      <th>{m.console_organization_th_action()}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -555,7 +568,7 @@ export default function OrganizationControlPanel({
                       <tr key={member.actorId}>
                         <td>
                           <strong>{member.displayName}</strong>
-                          <span>{member.email ?? 'بدون حساب کاربری'}</span>
+                          <span>{member.email ?? m.console_organization_no_account()}</span>
                         </td>
                         <td>
                           {member.workspaces.filter((item) => item.status === 'active').length}
@@ -565,17 +578,19 @@ export default function OrganizationControlPanel({
                             <span>{member.organizationRole}</span>
                           ) : (
                             <select
-                              aria-label={`نقش ${member.displayName}`}
+                              aria-label={m.console_organization_member_role_aria({
+                                name: member.displayName,
+                              })}
                               value={member.organizationRole}
                               onChange={(event) =>
                                 void updateMember(member.actorId, { role: event.target.value })
                               }
                             >
-                              <option value="admin">admin</option>
-                              <option value="editor">editor</option>
-                              <option value="reviewer">reviewer</option>
-                              <option value="viewer">viewer</option>
-                              <option value="consumer">consumer</option>
+                              <option value="admin">{m.shared_role_admin()}</option>
+                              <option value="editor">{m.shared_role_editor()}</option>
+                              <option value="reviewer">{m.shared_role_reviewer()}</option>
+                              <option value="viewer">{m.shared_role_viewer()}</option>
+                              <option value="consumer">{m.shared_role_consumer()}</option>
                             </select>
                           )}
                         </td>
@@ -589,7 +604,7 @@ export default function OrganizationControlPanel({
                             }
                             onClick={() => void updateMember(member.actorId, { status: 'revoked' })}
                           >
-                            <UserMinus size={14} /> لغو دسترسی
+                            <UserMinus size={14} /> {m.console_organization_revoke_access()}
                           </button>
                         </td>
                       </tr>
@@ -604,12 +619,12 @@ export default function OrganizationControlPanel({
             <div className="control-block-title">
               <ShieldCheck size={18} />
               <div>
-                <strong>دعوت‌ها</strong>
-                <span>توکن در فهرست ذخیره یا بازنمایی نمی‌شود.</span>
+                <strong>{m.console_organization_invitations_title()}</strong>
+                <span>{m.console_organization_invitations_desc()}</span>
               </div>
             </div>
             {invitations.length === 0 ? (
-              <div className="control-empty">دعوتی ثبت نشده است.</div>
+              <div className="control-empty">{m.console_organization_no_invitations()}</div>
             ) : (
               <div className="invitation-list">
                 {invitations.map((invitation) => (
@@ -628,7 +643,7 @@ export default function OrganizationControlPanel({
                       disabled={invitation.status !== 'pending'}
                       onClick={() => void revokeInvitation(invitation.id)}
                     >
-                      لغو
+                      {m.console_organization_revoke_button()}
                     </button>
                   </div>
                 ))}
