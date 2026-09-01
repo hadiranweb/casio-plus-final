@@ -7,6 +7,7 @@ const execFileAsync = promisify(execFile);
 const root = resolve(import.meta.dirname, '..');
 const packageRoot = resolve(root, 'packages/i18n');
 const settingsPath = resolve(packageRoot, 'project.inlang/settings.json');
+const compilerConfigPath = resolve(packageRoot, 'project.inlang/paraglide.config.js');
 const catalogPaths = {
   en: resolve(packageRoot, 'messages/en.json'),
   fa: resolve(packageRoot, 'messages/fa.json'),
@@ -36,6 +37,23 @@ function placeholders(message: string) {
 }
 
 const settings = JSON.parse(await readFile(settingsPath, 'utf8')) as Settings;
+const compilerConfig = await readFile(compilerConfigPath, 'utf8');
+assert(
+  compilerConfig.includes("outdir: './src/paraglide'"),
+  'Paraglide outdir must remain canonical',
+);
+assert(
+  compilerConfig.includes("strategy: ['cookie', 'baseLocale']"),
+  'Paraglide strategy must remain cookie then baseLocale',
+);
+assert(
+  compilerConfig.includes("cookieName: 'CASIOPLUS_LOCALE'"),
+  'Paraglide cookie name must remain canonical',
+);
+assert(
+  compilerConfig.includes('emitTsDeclarations: true'),
+  'Paraglide TypeScript declarations must be emitted for clean clones',
+);
 assert(settings.baseLocale === 'en', 'English must remain the i18n base locale');
 assert(
   JSON.stringify(settings.locales) === JSON.stringify(['en', 'fa']),
@@ -87,9 +105,14 @@ for (const key of englishKeys) {
 }
 
 const { stdout: tracked } = await execFileAsync('git', ['ls-files', '-z'], { cwd: root });
-const trackedGenerated = tracked
-  .split('\0')
-  .filter((path) => path.startsWith('packages/i18n/src/paraglide/'));
+const trackedPaths = tracked.split('\0');
+assert(
+  trackedPaths.includes('packages/i18n/project.inlang/paraglide.config.js'),
+  'Paraglide compiler config must be tracked for clean-clone reproducibility',
+);
+const trackedGenerated = trackedPaths.filter((path) =>
+  path.startsWith('packages/i18n/src/paraglide/'),
+);
 assert(trackedGenerated.length === 0, 'Generated Paraglide output must not be tracked');
 
 console.log(
@@ -99,6 +122,7 @@ console.log(
     locales: settings.locales,
     messageCount: englishKeys.length,
     placeholderParity: true,
+    compilerConfigTracked: true,
     generatedOutputTracked: false,
   }),
 );
