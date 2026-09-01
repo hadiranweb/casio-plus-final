@@ -5,6 +5,7 @@
     {
       "path": "runtime/n8n/workflows/casioplus-runtime-execution.json",
       "name": "Casioplus Runtime Execution",
+      "triggerType": "webhook",
       "webhookPath": "casioplus-runtime-execution",
       "operationPrefixes": ["n8n."],
       "activeInRepository": false,
@@ -13,12 +14,26 @@
         "header": "Authorization",
         "secretEnvironmentVariable": "N8N_WEBHOOK_TOKEN"
       }
+    },
+    {
+      "path": "runtime/n8n/workflows/casioplus-translation-proposal-schedule.json",
+      "name": "Casioplus Translation Proposal Schedule",
+      "triggerType": "schedule",
+      "activeInRepository": false,
+      "requiredEnvironmentVariables": [
+        "CASIOPLUS_GITHUB_APP_INTERNAL_URL",
+        "ADAPTER_SHARED_SECRET",
+        "CASIOPLUS_CORE_INTERNAL_URL",
+        "TRANSLATION_SCHEDULER_SECRET"
+      ],
+      "proposalOnly": true
     }
   ],
   "activationGates": [
     "repository-validation",
     "n8n-import-validation",
     "credential-binding",
+    "environment-binding",
     "connection-review",
     "safe-test-execution",
     "first-execution-monitoring"

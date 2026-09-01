@@ -25,6 +25,7 @@ const statusLabels: Record<string, () => string> = {
   pending: m.shared_status_pending,
   pending_approval: m.shared_status_pending_approval,
   pending_review: m.shared_status_pending_review,
+  paused: m.shared_status_paused,
   planning: m.shared_status_planning,
   pr_opened: m.shared_status_pr_opened,
   proposed: m.shared_status_proposed,

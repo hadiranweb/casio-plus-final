@@ -369,6 +369,79 @@ export const translationRepositoryWebhookEventSchema = z
     }
   });
 
+const translationScheduleKeyPrefixSchema = z
+  .string()
+  .max(100)
+  .regex(/^(?:[a-z][a-z0-9_]{1,99})?$/);
+const translationCatalogSchema = z
+  .record(translationMessageKeySchema, translationTextSchema)
+  .refine((catalog) => Object.keys(catalog).length <= 5_000, {
+    message: 'translation_catalog_item_limit_exceeded',
+  });
+
+export const createTranslationProposalScheduleSchema = organizationContextSchema.extend({
+  flowId: identifierSchema,
+  flowVersionId: identifierSchema,
+  scheduleKey: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,79}$/),
+  cadenceSeconds: z.number().int().min(21_600).max(2_678_400),
+  maxItems: z.number().int().min(1).max(100).default(50),
+  messageKeyPrefixes: z.array(translationScheduleKeyPrefixSchema).min(1).max(20).default(['']),
+  nextRunAt: z.string().datetime(),
+  status: z.enum(['paused', 'active']).default('paused'),
+});
+
+export const updateTranslationProposalScheduleSchema = organizationContextSchema
+  .extend({
+    scheduleId: identifierSchema,
+    cadenceSeconds: z.number().int().min(21_600).max(2_678_400).optional(),
+    maxItems: z.number().int().min(1).max(100).optional(),
+    messageKeyPrefixes: z.array(translationScheduleKeyPrefixSchema).min(1).max(20).optional(),
+    nextRunAt: z.string().datetime().optional(),
+    status: z.enum(['paused', 'active', 'expired']).optional(),
+  })
+  .refine(
+    (value) =>
+      value.cadenceSeconds !== undefined ||
+      value.maxItems !== undefined ||
+      value.messageKeyPrefixes !== undefined ||
+      value.nextRunAt !== undefined ||
+      value.status !== undefined,
+    { message: 'translation_schedule_update_empty' },
+  );
+
+export const translationCatalogSnapshotSchema = z
+  .object({
+    repositoryFullName: z.literal('hadiranweb/casio-plus-final'),
+    baseRef: z.literal('main'),
+    baseCommitSha: translationCommitShaSchema,
+    catalogHash: translationHashSchema,
+    sourceLocale: z.literal('en'),
+    targetLocale: z.literal('fa'),
+    sourceCatalog: translationCatalogSchema,
+    targetCatalog: translationCatalogSchema,
+  })
+  .strict();
+
+export const tickTranslationProposalSchedulesSchema = translationCatalogSnapshotSchema.extend({
+  requestedAt: z.string().datetime(),
+});
+
+export const scheduledTranslationProposalOutputSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            messageKey: translationMessageKeySchema,
+            proposedText: translationTextSchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict();
+
 export const runtimeEventSchema = organizationContextSchema.extend({
   processRunId: identifierSchema.nullable(),
   type: z.string().regex(/^[a-z][a-z0-9_.-]{1,127}$/),
@@ -579,6 +652,19 @@ export type CreateFlowVersionInput = z.infer<typeof createFlowVersionSchema>;
 export type CreateProcessRunInput = z.infer<typeof createProcessRunSchema>;
 export type RuntimeEventInput = z.infer<typeof runtimeEventSchema>;
 export type CreateTranslationChangeSetInput = z.infer<typeof createTranslationChangeSetSchema>;
+export type CreateTranslationProposalScheduleInput = z.infer<
+  typeof createTranslationProposalScheduleSchema
+>;
+export type UpdateTranslationProposalScheduleInput = z.infer<
+  typeof updateTranslationProposalScheduleSchema
+>;
+export type TranslationCatalogSnapshot = z.infer<typeof translationCatalogSnapshotSchema>;
+export type TickTranslationProposalSchedulesInput = z.infer<
+  typeof tickTranslationProposalSchedulesSchema
+>;
+export type ScheduledTranslationProposalOutput = z.infer<
+  typeof scheduledTranslationProposalOutputSchema
+>;
 export type ReviewTranslationChangeSetItemInput = z.infer<
   typeof reviewTranslationChangeSetItemSchema
 >;

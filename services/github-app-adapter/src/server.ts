@@ -8,6 +8,7 @@ import { z } from 'zod';
 import {
   GitHubAppError,
   openTranslationPullRequest,
+  readTranslationCatalogSnapshot,
   type GitHubAppConfiguration,
 } from './github-client.js';
 
@@ -184,6 +185,18 @@ export function createGitHubAppAdapterServer(rawConfiguration: GitHubAppAdapterC
     try {
       if (request.method === 'GET' && request.url === '/healthz') {
         respondJson(response, 200, { status: 'ok', service: 'github-app-adapter' });
+        return;
+      }
+      if (request.method === 'GET' && request.url === '/internal/v1/translation-catalog-snapshot') {
+        const secret = requiredHeader(request, 'x-casioplus-adapter-secret');
+        if (!safeEqual(secret, configuration.adapterSecret)) {
+          respondJson(response, 401, { error: 'github_app_adapter_unauthorized' });
+          return;
+        }
+        const snapshot = await readTranslationCatalogSnapshot(
+          githubClientConfiguration(configuration),
+        );
+        respondJson(response, 200, snapshot);
         return;
       }
       if (request.method === 'POST' && request.url === '/dispatch') {

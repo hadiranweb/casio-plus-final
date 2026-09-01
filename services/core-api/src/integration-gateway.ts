@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { z } from 'zod';
 import { integrationIngressSchema } from '../../../packages/contracts/src/index.js';
 import { withTransaction } from './db.js';
+import { materializeScheduledTranslationProposal } from './translation-proposal-schedules.js';
 import { applyTranslationRepositoryWebhookEvent } from './translation-repository-sync.js';
 
 export type IntegrationSecretMap = Readonly<Record<string, string>>;
@@ -649,6 +650,15 @@ export function mountIntegrationGateway(
                 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3`,
               [run.workItemId, run.organizationId, run.workspaceId],
             );
+          }
+          if (row.operation === 'model.chat.complete') {
+            await materializeScheduledTranslationProposal(client, {
+              processRunId: row.processRunId,
+              adapterSucceeded,
+              adapterOutput: input.adapterResult?.output,
+              model: input.adapterResult?.model,
+              adapterErrorCode: errorCode,
+            });
           }
         }
         return { status: nextStatus };

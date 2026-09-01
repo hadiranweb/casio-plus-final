@@ -248,6 +248,13 @@ for (const [dockerfile, requiredFragments] of Object.entries(runtimeAdapterDocke
 }
 
 const runtimeComposeContracts: Record<string, string[]> = {
+  'runtime/n8n/docker-compose.yml': [
+    'n8nio/n8n:2.36.8',
+    'internal: true',
+    'CASIOPLUS_GITHUB_APP_INTERNAL_URL',
+    'CASIOPLUS_CORE_INTERNAL_URL',
+    'TRANSLATION_SCHEDULER_SECRET',
+  ],
   'runtime/open-webui/docker-compose.yml': [
     'ghcr.io/open-webui/open-webui:v0.11.1',
     'internal: true',

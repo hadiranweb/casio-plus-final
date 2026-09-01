@@ -1,7 +1,11 @@
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
-import { GitHubAppError, openTranslationPullRequest } from './github-client.js';
+import {
+  GitHubAppError,
+  openTranslationPullRequest,
+  readTranslationCatalogSnapshot,
+} from './github-client.js';
 
 const baseCommitSha = 'a'.repeat(40);
 const pullRequestHeadSha = 'b'.repeat(40);
@@ -98,6 +102,57 @@ function respond(response: import('node:http').ServerResponse, status: number, b
 }
 
 describe('GitHub App translation client', () => {
+  it('reads a fixed English/Persian catalog snapshot with read-only contents permission', async () => {
+    const { baseUrl, requests } = await listen((request, response) => {
+      const url = request.url ?? '';
+      if (url.includes('/access_tokens')) {
+        respond(response, 201, {
+          token: 'read-installation-token',
+          expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+          permissions: { metadata: 'read', contents: 'read' },
+          repositories: [{ full_name: 'hadiranweb/casio-plus-final', private: true }],
+        });
+      } else if (url === '/repos/hadiranweb/casio-plus-final/git/ref/heads/main') {
+        respond(response, 200, { object: { sha: baseCommitSha } });
+      } else if (url.includes('/contents/packages/i18n/messages/en.json')) {
+        respond(response, 200, {
+          type: 'file',
+          encoding: 'base64',
+          content: Buffer.from(sourceRaw).toString('base64'),
+          sha: 'c'.repeat(40),
+        });
+      } else if (url.includes('/contents/packages/i18n/messages/fa.json')) {
+        respond(response, 200, {
+          type: 'file',
+          encoding: 'base64',
+          content: Buffer.from(targetRaw).toString('base64'),
+          sha: 'd'.repeat(40),
+        });
+      } else {
+        respond(response, 404, { error: 'unexpected_test_route', url });
+      }
+    });
+    const snapshot = await readTranslationCatalogSnapshot(configuration(baseUrl));
+    expect(snapshot).toMatchObject({
+      repositoryFullName: 'hadiranweb/casio-plus-final',
+      baseRef: 'main',
+      baseCommitSha,
+      catalogHash,
+      sourceLocale: 'en',
+      targetLocale: 'fa',
+      sourceCatalog: { shared_greeting: 'Hello {name}' },
+      targetCatalog: { shared_greeting: 'سلام {name}' },
+    });
+    const tokenRequest = requests.find((entry) => entry.url.includes('/access_tokens'))!;
+    expect(tokenRequest.body).toEqual({
+      repositories: ['casio-plus-final'],
+      permissions: { metadata: 'read', contents: 'read' },
+    });
+    expect(
+      requests.some((entry) => entry.method !== 'GET' && !entry.url.includes('/access_tokens')),
+    ).toBe(false);
+  });
+
   it('creates only the allowlisted catalog commit and pull request with narrowed permissions', async () => {
     const input = payload();
     const { baseUrl, requests } = await listen((request, response) => {

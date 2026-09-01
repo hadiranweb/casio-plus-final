@@ -36,6 +36,7 @@ import { assertCsrfForCookieRequest } from './auth.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
 import { mountTranslationChangeSetRoutes } from './translation-change-sets.js';
+import { mountTranslationProposalScheduleRoutes } from './translation-proposal-schedules.js';
 import { mountTranslationRepositorySyncRoutes } from './translation-repository-sync.js';
 import { retrieveGovernedMemory, retrieveGovernedMemoryGraph } from './memory-broker.js';
 import {
@@ -204,6 +205,7 @@ export interface AppOptions {
   sessionSecret?: string;
   integrationSecrets?: IntegrationSecretMap;
   dispatcherSecret?: string;
+  schedulerSecret?: string;
   artifactObjectStore?: ArtifactObjectStore;
 }
 
@@ -288,8 +290,10 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
       requireMembership(pool, context, roles, enforceMembership),
     error: (statusCode: number, code: string) => new HttpError(statusCode, code),
     requestId,
+    schedulerSecret: options.schedulerSecret,
   };
   mountTranslationChangeSetRoutes(app, translationRouteDependencies);
+  mountTranslationProposalScheduleRoutes(app, translationRouteDependencies);
   mountTranslationRepositorySyncRoutes(app, translationRouteDependencies);
 
   app.get('/healthz', async (_req, res, next) => {

@@ -1,5 +1,8 @@
 import { createHash, createSign } from 'node:crypto';
-import { repositoryOpenTranslationPrPayloadSchema } from '@casioplus/contracts';
+import {
+  repositoryOpenTranslationPrPayloadSchema,
+  translationCatalogSnapshotSchema,
+} from '@casioplus/contracts';
 import { z } from 'zod';
 
 const installationTokenSchema = z.object({
@@ -114,7 +117,10 @@ async function githubRequest(
   }
 }
 
-async function installationToken(configuration: GitHubAppConfiguration): Promise<string> {
+async function installationToken(
+  configuration: GitHubAppConfiguration,
+  access: 'read' | 'write',
+): Promise<string> {
   const { response, body } = await githubRequest(
     configuration,
     appJwt(configuration),
@@ -123,7 +129,10 @@ async function installationToken(configuration: GitHubAppConfiguration): Promise
       method: 'POST',
       body: JSON.stringify({
         repositories: ['casio-plus-final'],
-        permissions: { metadata: 'read', contents: 'write', pull_requests: 'write' },
+        permissions:
+          access === 'write'
+            ? { metadata: 'read', contents: 'write', pull_requests: 'write' }
+            : { metadata: 'read', contents: 'read' },
       }),
     },
   );
@@ -137,7 +146,9 @@ async function installationToken(configuration: GitHubAppConfiguration): Promise
   const parsed = installationTokenSchema.parse(body);
   if (
     parsed.permissions &&
-    (parsed.permissions.contents !== 'write' || parsed.permissions.pull_requests !== 'write')
+    (access === 'write'
+      ? parsed.permissions.contents !== 'write' || parsed.permissions.pull_requests !== 'write'
+      : !['read', 'write'].includes(parsed.permissions.contents ?? ''))
   ) {
     throw new GitHubAppError('github_app_permissions_insufficient', 403, false);
   }
@@ -277,6 +288,25 @@ function resultFromPullRequest(
   };
 }
 
+export async function readTranslationCatalogSnapshot(configuration: GitHubAppConfiguration) {
+  const token = await installationToken(configuration, 'read');
+  const baseCommitSha = await getReference(configuration, token, 'main');
+  const [sourceFile, targetFile] = await Promise.all([
+    getCatalogFile(configuration, token, 'packages/i18n/messages/en.json', baseCommitSha),
+    getCatalogFile(configuration, token, 'packages/i18n/messages/fa.json', baseCommitSha),
+  ]);
+  return translationCatalogSnapshotSchema.parse({
+    repositoryFullName: 'hadiranweb/casio-plus-final',
+    baseRef: 'main',
+    baseCommitSha,
+    catalogHash: textHash(targetFile.raw),
+    sourceLocale: 'en',
+    targetLocale: 'fa',
+    sourceCatalog: sourceFile.catalog,
+    targetCatalog: targetFile.catalog,
+  });
+}
+
 export async function openTranslationPullRequest(
   configuration: GitHubAppConfiguration,
   rawPayload: unknown,
@@ -285,7 +315,7 @@ export async function openTranslationPullRequest(
   if (new Date(payload.expiresAt).getTime() <= Date.now()) {
     throw new GitHubAppError('github_translation_approval_expired', 409, false);
   }
-  const token = await installationToken(configuration);
+  const token = await installationToken(configuration, 'write');
   const baseHead = await getReference(configuration, token, payload.baseRef);
   if (baseHead !== payload.baseCommitSha) {
     throw new GitHubAppError('github_translation_base_stale', 409, false);

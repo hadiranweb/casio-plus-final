@@ -101,13 +101,24 @@ if (trackedFiles.includes(githubClientPath) || trackedFiles.includes(githubServe
       violations.push(`GitHub App shared scope guard missing: ${required}`);
     }
   }
-  for (const required of [
-    "permissions: { metadata: 'read', contents: 'write', pull_requests: 'write' }",
-    'maintainer_can_modify: false',
-  ]) {
-    if (!githubClient.includes(required)) {
-      violations.push(`GitHub App adapter scope guard missing: ${required}`);
+  const permissionGuards = [
+    {
+      name: 'translation PR write permissions',
+      pattern:
+        /metadata:\s*'read'[\s\S]{0,120}contents:\s*'write'[\s\S]{0,120}pull_requests:\s*'write'/,
+    },
+    {
+      name: 'catalog snapshot read-only permission',
+      pattern: /metadata:\s*'read'[\s\S]{0,120}contents:\s*'read'/,
+    },
+  ];
+  for (const guard of permissionGuards) {
+    if (!guard.pattern.test(githubClient)) {
+      violations.push(`GitHub App adapter scope guard missing: ${guard.name}`);
     }
+  }
+  if (!githubClient.includes('maintainer_can_modify: false')) {
+    violations.push('GitHub App adapter scope guard missing: maintainer_can_modify: false');
   }
   const webhookSignatureCheck = githubServer.indexOf('const expected = `sha256=${createHmac');
   const webhookParse = githubServer.indexOf('pullRequestWebhookSchema.parse(parseJson(rawBody))');

@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, generateKeyPairSync } from 'node:crypto';
 import { createServer } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGitHubAppAdapterServer } from './server.js';
@@ -30,6 +30,9 @@ const webhookSecret = 'github-webhook-secret-with-at-least-thirty-two';
 const integrationSecret = 'integration-secret-with-at-least-thirty-two';
 const deliveryId = '44444444-4444-4444-8444-444444444444';
 const changeSetId = '11111111-1111-4111-8111-111111111111';
+const testPrivateKey = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  .privateKey.export({ type: 'pkcs8', format: 'pem' })
+  .toString();
 
 function pullRequestPayload() {
   return {
@@ -45,14 +48,14 @@ function pullRequestPayload() {
   };
 }
 
-function configuration(coreApiUrl: string) {
+function configuration(coreApiUrl: string, githubApiBaseUrl = 'https://api.github.test') {
   return {
     port: 8085,
     adapterSecret,
-    githubApiBaseUrl: 'https://api.github.test',
+    githubApiBaseUrl,
     githubAppId: '12345',
     githubInstallationId: '67890',
-    githubPrivateKey: 'x'.repeat(128),
+    githubPrivateKey: testPrivateKey,
     githubWebhookSecret: webhookSecret,
     coreApiUrl,
     integrationExternalAppKey: 'github-app',
@@ -66,6 +69,75 @@ function configuration(coreApiUrl: string) {
 }
 
 describe('GitHub App adapter server', () => {
+  it('protects and serves only the fixed read-only translation catalog snapshot', async () => {
+    let githubRequests = 0;
+    const baseCommitSha = 'a'.repeat(40);
+    const sourceRaw = `${JSON.stringify({ shared_greeting: 'Hello' }, null, 2)}\n`;
+    const targetRaw = `${JSON.stringify({ shared_greeting: 'سلام' }, null, 2)}\n`;
+    const github = createServer((incoming, response) => {
+      githubRequests += 1;
+      const url = incoming.url ?? '';
+      response.setHeader('content-type', 'application/json');
+      if (url.includes('/access_tokens')) {
+        response.end(
+          JSON.stringify({
+            token: 'read-token',
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+            permissions: { metadata: 'read', contents: 'read' },
+            repositories: [{ full_name: 'hadiranweb/casio-plus-final', private: true }],
+          }),
+        );
+      } else if (url.endsWith('/git/ref/heads/main')) {
+        response.end(JSON.stringify({ object: { sha: baseCommitSha } }));
+      } else if (url.includes('/contents/packages/i18n/messages/en.json')) {
+        response.end(
+          JSON.stringify({
+            type: 'file',
+            encoding: 'base64',
+            content: Buffer.from(sourceRaw).toString('base64'),
+            sha: 'b'.repeat(40),
+          }),
+        );
+      } else if (url.includes('/contents/packages/i18n/messages/fa.json')) {
+        response.end(
+          JSON.stringify({
+            type: 'file',
+            encoding: 'base64',
+            content: Buffer.from(targetRaw).toString('base64'),
+            sha: 'c'.repeat(40),
+          }),
+        );
+      } else {
+        response.writeHead(404).end(JSON.stringify({ error: 'unexpected_route', url }));
+      }
+    });
+    const githubUrl = await listen(github);
+    const core = createServer((_incoming, response) => response.writeHead(500).end());
+    const coreUrl = await listen(core);
+    const adapterUrl = await listen(
+      createGitHubAppAdapterServer(configuration(coreUrl, githubUrl)),
+    );
+    const unauthorized = await fetch(`${adapterUrl}/internal/v1/translation-catalog-snapshot`, {
+      headers: { 'x-casioplus-adapter-secret': 'wrong-secret' },
+    });
+    expect(unauthorized.status).toBe(401);
+    expect(githubRequests).toBe(0);
+    const authorized = await fetch(`${adapterUrl}/internal/v1/translation-catalog-snapshot`, {
+      headers: { 'x-casioplus-adapter-secret': adapterSecret },
+    });
+    expect(authorized.status).toBe(200);
+    expect(await authorized.json()).toMatchObject({
+      repositoryFullName: 'hadiranweb/casio-plus-final',
+      baseRef: 'main',
+      baseCommitSha,
+      sourceLocale: 'en',
+      targetLocale: 'fa',
+      sourceCatalog: { shared_greeting: 'Hello' },
+      targetCatalog: { shared_greeting: 'سلام' },
+    });
+    expect(githubRequests).toBe(4);
+  });
+
   it('verifies GitHub raw-body HMAC and forwards a separately signed canonical event to Core', async () => {
     const forwarded: Array<{ headers: Record<string, string | undefined>; raw: Buffer }> = [];
     const core = createServer(async (request, response) => {

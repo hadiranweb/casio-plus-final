@@ -100,6 +100,10 @@ jobs:
             --volume "$PWD/runtime/n8n/workflows:/workflows:ro" \
             n8nio/n8n:2.36.8 \
             import:workflow --input=/workflows/casioplus-runtime-execution.json
+          docker run --rm \
+            --volume "$PWD/runtime/n8n/workflows:/workflows:ro" \
+            n8nio/n8n:2.36.8 \
+            import:workflow --input=/workflows/casioplus-translation-proposal-schedule.json
 
       - name: Validate Remix SSR
         run: pnpm smoke:remix
@@ -112,7 +116,15 @@ jobs:
           OPEN_WEBUI_ALLOWED_MODELS_JSON: '["casioplus-general"]'
           OPENCLAW_GATEWAY_TOKEN: release-candidate-openclaw-token-at-least-32-characters
           OPENCLAW_EXECUTOR_TARGETS_JSON: '{"operations.primary":{"channel":"slack","target":"channel:C123"}}'
+          N8N_DB_USER: casioplus_n8n_release_candidate
+          N8N_DB_PASSWORD: release-candidate-n8n-db-password-at-least-32-characters
+          N8N_ENCRYPTION_KEY: release-candidate-n8n-encryption-key-at-least-32-characters
+          N8N_HOST: n8n.internal.test
+          N8N_PUBLIC_URL: https://n8n.internal.test
+          N8N_WEBHOOK_TOKEN: release-candidate-n8n-webhook-token-at-least-32-characters
+          TRANSLATION_SCHEDULER_SECRET: release-candidate-scheduler-secret-at-least-32-characters
         run: |
+          docker compose -f runtime/n8n/docker-compose.yml config --quiet
           docker compose -f runtime/open-webui/docker-compose.yml config --quiet
           docker compose -f runtime/openclaw/docker-compose.yml config --quiet
 

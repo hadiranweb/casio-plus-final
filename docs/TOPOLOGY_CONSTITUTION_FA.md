@@ -85,6 +85,7 @@ services/core-api ─────────────> contracts + domain + 
 services/integration-dispatcher ─> Core internal API only (بدون PostgreSQL credential)
 services/native-worker ──────────> contracts + domain      (بدون PostgreSQL و Redis credential)
 services/n8n-adapter ────────────> contracts               (orchestrator-only)
+runtime/n8n ─────────────────────> GitHub App snapshot read-only + Core signed tick (بدون DB/action)
 services/open-webui-adapter ─────> contracts               (typed interaction/context)
 services/openclaw-adapter ───────> contracts               (allowlist/approval/idempotency)
 services/github-app-adapter ─────> contracts + GitHub API  (فقط branch/catalog/PR؛ بدون DB/merge)
@@ -103,6 +104,7 @@ services/github-app-adapter ─────> contracts + GitHub API  (فقط bra
 | KnowledgeReview و KnowledgePromotion              | Core/PostgreSQL                | actor مجاز و policy Core                                  | retrieval و audit                        |
 | اجرای runtime                                     | Worker خارج از DB              | Core dispatch؛ Worker فقط نتیجهٔ signed را بازمی‌گرداند   | Core و Console/Forge از طریق Core        |
 | action side-effect                                | سرویس مقصد از طریق adapter     | OpenClaw adapter پس از approval و allowlist               | Core audit و actor مجاز                  |
+| Translation Proposal Schedule و ScheduleRun       | Core/PostgreSQL                | Core/API؛ n8n فقط tick امضاشده و snapshot read-only       | Forge، audit و dispatcher                |
 | Translation Change Set و وضعیت PR                 | Core/PostgreSQL                | Core/API؛ webhook GitHub فقط از Integration Gateway       | Forge، audit و actor مجاز                |
 | branch/commit/Pull Request ترجمه                  | GitHub repository              | GitHub App adapter پس از approval؛ هرگز main/merge مستقیم | CI و بازبین انسانی                       |
 
@@ -114,7 +116,7 @@ services/github-app-adapter ─────> contracts + GitHub API  (فقط bra
 
 ارتباط Core با Native Worker یک مسیر private service-to-service است و باید دارای `RUNTIME_SHARED_SECRET`، HMAC روی body، timestamp، nonce و replay persistence باشد. human session نباید در production جایگزین service identity شود. Worker فقط payload typed را دریافت می‌کند و نتیجهٔ typed را برمی‌گرداند؛ Core authorization، persistence و state transition را انجام می‌دهد.
 
-ارتباط با n8n فقط برای orchestration مجاز است. n8n نباید source of truth یا محل نگهداری state canonical شود. Open WebUI فقط interaction/model plane است و از typed tools/context استفاده می‌کند. OpenClaw فقط action plane محدود است و هر side-effect آن باید allowlisted، approval-gated، دارای approval UUID، expiry و idempotency باشد.
+ارتباط با n8n فقط برای orchestration مجاز است. n8n نباید source of truth یا محل نگهداری state canonical شود. workflow زمان‌بندی ترجمه فقط می‌تواند snapshot خواندنی catalog از `main` بگیرد و tick دارای secret و timestamp به Core بفرستد؛ ساخت ScheduleRun، ProcessRun، outbox، usage و Translation Change Set فقط در Core انجام می‌شود. خروجی زمان‌بندی‌شده همیشه `draft` است و review، approval، Pull Request، merge و release خودکار ممنوع‌اند. Open WebUI فقط interaction/model plane است و از typed tools/context استفاده می‌کند. OpenClaw فقط action plane محدود است و هر side-effect آن باید allowlisted، approval-gated، دارای approval UUID، expiry و idempotency باشد.
 
 ## قواعد سطح‌های محصول
 

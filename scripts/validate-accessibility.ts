@@ -274,6 +274,16 @@ async function main() {
       runtimeBinding: 'open-webui',
     });
     await postJson(`/api/v1/flows/${flow.id}/versions/${version.id}/publish`, {});
+    await postJson('/api/v1/translation-proposal-schedules', {
+      flowId: flow.id,
+      flowVersionId: version.id,
+      scheduleKey: `accessibility-${suffix}`,
+      cadenceSeconds: 604_800,
+      maxItems: 20,
+      messageKeyPrefixes: ['shared_', 'forge_'],
+      nextRunAt: new Date(Date.now() + 604_800_000).toISOString(),
+      status: 'paused',
+    });
     const run = await postJson<{ run: { id: string } }>('/api/v1/process-runs', {
       workItemId: work.id,
       flowId: flow.id,

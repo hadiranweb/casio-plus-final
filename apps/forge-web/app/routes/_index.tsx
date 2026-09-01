@@ -8,6 +8,9 @@ import type { loader as rootLoader } from '../root.js';
 
 const RunControlPanel = lazy(() => import('../components/RunControlPanel.client.js'));
 const TranslationReviewPanel = lazy(() => import('../components/TranslationReviewPanel.client.js'));
+const TranslationSchedulePanel = lazy(
+  () => import('../components/TranslationSchedulePanel.client.js'),
+);
 import {
   ArrowLeft,
   ArrowUpLeft,
@@ -198,6 +201,7 @@ export default function Forge() {
   const [notice, setNotice] = useState('');
   const [railOpen, setRailOpen] = useState(false);
   const selectedFlow = flows.find((flow) => flow.id === selectedFlowId) ?? flows[0];
+  const activeVersion = versions.find((version) => version.id === selectedFlow?.activeVersionId);
   const csrfToken = session?.csrfToken ?? '';
 
   const loadFlows = useCallback(async () => {
@@ -755,6 +759,20 @@ export default function Forge() {
               </section>
             </aside>
           </section>
+
+          <Suspense
+            fallback={
+              <div className="inspector-empty">{m.forge_translation_schedule_loading()}</div>
+            }
+          >
+            <TranslationSchedulePanel
+              apiBase={apiBase}
+              csrfToken={csrfToken}
+              role={session.context.role}
+              flow={selectedFlow}
+              activeVersion={activeVersion}
+            />
+          </Suspense>
 
           <Suspense
             fallback={<div className="inspector-empty">{m.forge_translation_review_loading()}</div>}

@@ -1567,3 +1567,183 @@ html[dir='rtl'] .translation-change-set-list button.active {
   font-size: 10px;
   line-height: 1.7;
 }
+
+.translation-schedule-panel {
+  border: 1px solid #dce1dd;
+  background: #fbfcfa;
+  box-shadow: 0 16px 46px rgba(26, 47, 34, 0.08);
+}
+.translation-schedule-panel > .translation-review-boundary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 20px 0;
+}
+.translation-schedule-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(2, minmax(130px, 0.6fr));
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #dce1dd;
+  background: #f7f9f6;
+}
+.translation-schedule-form label,
+.translation-schedule-flow {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  color: #4b5b50;
+  font-size: 9px;
+}
+.translation-schedule-flow strong {
+  color: #1e3427;
+  font-size: 12px;
+}
+.translation-schedule-form input,
+.translation-schedule-form select {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid #cbd2cc;
+  border-radius: 0;
+  background: #fff;
+  padding: 8px 10px;
+  color: #1d3024;
+  font: inherit;
+  font-size: 10px;
+}
+.translation-schedule-form input:focus-visible,
+.translation-schedule-form select:focus-visible {
+  outline: 2px solid #2a8b59;
+  outline-offset: 2px;
+}
+.translation-schedule-prefixes {
+  grid-column: 1 / -1;
+}
+.translation-schedule-prefixes small,
+.translation-schedule-flow small,
+.translation-schedule-requirement {
+  color: #6a776e;
+  line-height: 1.6;
+}
+.translation-schedule-form > .primary-action {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid #1c7047;
+  background: #1f7b4e;
+  padding: 8px 12px;
+  color: #fff;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.translation-schedule-form > .primary-action:disabled {
+  border-color: #cbd2cc;
+  background: #e9ede9;
+  color: #68746c;
+  cursor: not-allowed;
+}
+.translation-schedule-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 20px 20px;
+}
+.translation-schedule-list > h3,
+.translation-schedule-list > .inspector-empty {
+  grid-column: 1 / -1;
+}
+.translation-schedule-list > h3 {
+  margin: 0;
+  color: #25362b;
+  font-size: 10px;
+}
+.translation-schedule-list article {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  border: 1px solid #dce1dd;
+  background: #fff;
+  padding: 14px;
+}
+.translation-schedule-list article.active {
+  border-color: #79b795;
+  box-shadow: inset 3px 0 0 #3dde88;
+}
+html[dir='rtl'] .translation-schedule-list article.active {
+  box-shadow: inset -3px 0 0 #3dde88;
+}
+.translation-schedule-list article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.translation-schedule-list article > header code {
+  min-width: 0;
+  overflow: hidden;
+  color: #23573b;
+  font-size: 9px;
+  text-overflow: ellipsis;
+}
+.translation-schedule-list article > header span {
+  color: #5c6a61;
+  font-size: 8px;
+}
+.translation-schedule-list dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid #edf0ed;
+}
+.translation-schedule-list dl > div {
+  min-width: 0;
+  padding: 9px;
+  border-inline-end: 1px solid #edf0ed;
+}
+.translation-schedule-list dl > div:last-child {
+  border-inline-end: 0;
+}
+.translation-schedule-list dt {
+  color: #6b776f;
+  font-size: 7px;
+}
+.translation-schedule-list dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: #24372b;
+  font-size: 9px;
+}
+.translation-schedule-list article > small {
+  overflow-wrap: anywhere;
+  color: #66736a;
+  font-size: 8px;
+}
+.translation-schedule-error {
+  margin: 0;
+  color: #8d3029;
+  font-size: 8px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 840px) {
+  .translation-schedule-form,
+  .translation-schedule-list {
+    grid-template-columns: 1fr;
+  }
+  .translation-schedule-list dl {
+    grid-template-columns: 1fr;
+  }
+  .translation-schedule-list dl > div {
+    border-inline-end: 0;
+    border-bottom: 1px solid #edf0ed;
+  }
+  .translation-schedule-list dl > div:last-child {
+    border-bottom: 0;
+  }
+}
