@@ -209,6 +209,93 @@ export const decideActionApprovalSchema = organizationContextSchema.extend({
   reason: z.string().trim().min(1).max(2000),
 });
 
+export const translationLocaleSchema = z.enum(['en', 'fa']);
+const translationTextSchema = z
+  .string()
+  .min(1)
+  .max(20_000)
+  .refine((value) => value.trim().length > 0, 'translation_text_must_not_be_blank');
+const translationItemContextSchema = z
+  .object({
+    surface: z.enum(['console', 'forge', 'shared']),
+    route: z.string().trim().min(1).max(200).optional(),
+    description: z.string().trim().min(1).max(1000).optional(),
+    characterLimit: z.number().int().min(1).max(20_000).optional(),
+  })
+  .strict();
+const translationProvenanceSchema = z
+  .object({
+    model: z.string().trim().min(1).max(200).optional(),
+    modelVersion: z.string().trim().min(1).max(200).optional(),
+    promptVersion: z.string().trim().min(1).max(200).optional(),
+    glossaryVersion: z.string().trim().min(1).max(200).optional(),
+    scheduleId: identifierSchema.optional(),
+  })
+  .strict();
+export const translationChangeSetItemInputSchema = z.object({
+  messageKey: z.string().regex(/^[a-z][a-z0-9_]{2,199}$/),
+  sourceText: translationTextSchema,
+  currentTargetText: translationTextSchema.nullable().optional(),
+  proposedText: translationTextSchema,
+  placeholderSignature: z
+    .array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/))
+    .max(50)
+    .default([]),
+  context: translationItemContextSchema,
+});
+
+export const createTranslationChangeSetSchema = organizationContextSchema
+  .extend({
+    processRunId: identifierSchema,
+    repositoryFullName: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+    baseRef: z.string().regex(/^[A-Za-z0-9._/-]{1,200}$/),
+    baseCommitSha: z.string().regex(/^[a-f0-9]{40}$/),
+    catalogHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sourceLocale: translationLocaleSchema,
+    targetLocale: translationLocaleSchema,
+    idempotencyKey: z.string().trim().min(16).max(200),
+    expiresInSeconds: z.number().int().min(300).max(604_800).default(86_400),
+    provenance: translationProvenanceSchema.default({}),
+    items: z.array(translationChangeSetItemInputSchema).min(1).max(500),
+  })
+  .refine((value) => value.sourceLocale !== value.targetLocale, {
+    message: 'translation_locales_must_differ',
+    path: ['targetLocale'],
+  });
+
+export const submitTranslationChangeSetSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+});
+
+export const reviewTranslationChangeSetItemSchema = organizationContextSchema
+  .extend({
+    changeSetId: identifierSchema,
+    itemId: identifierSchema,
+    decision: z.enum(['accepted', 'edited', 'rejected']),
+    reviewedText: translationTextSchema.optional(),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .superRefine((value, context) => {
+    if (value.decision === 'edited' && !value.reviewedText) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'reviewed_text_required_for_edited_translation',
+        path: ['reviewedText'],
+      });
+    }
+    if (value.decision !== 'edited' && value.reviewedText !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'reviewed_text_only_allowed_for_edited_translation',
+        path: ['reviewedText'],
+      });
+    }
+  });
+
+export const completeTranslationChangeSetReviewSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+});
+
 export const runtimeEventSchema = organizationContextSchema.extend({
   processRunId: identifierSchema.nullable(),
   type: z.string().regex(/^[a-z][a-z0-9_.-]{1,127}$/),
@@ -414,6 +501,10 @@ export type CreateFlowInput = z.infer<typeof createFlowSchema>;
 export type CreateFlowVersionInput = z.infer<typeof createFlowVersionSchema>;
 export type CreateProcessRunInput = z.infer<typeof createProcessRunSchema>;
 export type RuntimeEventInput = z.infer<typeof runtimeEventSchema>;
+export type CreateTranslationChangeSetInput = z.infer<typeof createTranslationChangeSetSchema>;
+export type ReviewTranslationChangeSetItemInput = z.infer<
+  typeof reviewTranslationChangeSetItemSchema
+>;
 export type CreateArtifactInput = z.infer<typeof createArtifactSchema>;
 export type CreateArtifactUploadInput = z.infer<typeof createArtifactUploadSchema>;
 export type CompleteArtifactUploadInput = z.infer<typeof completeArtifactUploadSchema>;

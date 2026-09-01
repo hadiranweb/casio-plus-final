@@ -7,6 +7,7 @@ import { CasioplusBrandMark } from '@casioplus/ui';
 import type { loader as rootLoader } from '../root.js';
 
 const RunControlPanel = lazy(() => import('../components/RunControlPanel.client.js'));
+const TranslationReviewPanel = lazy(() => import('../components/TranslationReviewPanel.client.js'));
 import {
   ArrowLeft,
   ArrowUpLeft,
@@ -754,6 +755,17 @@ export default function Forge() {
               </section>
             </aside>
           </section>
+
+          <Suspense
+            fallback={<div className="inspector-empty">{m.forge_translation_review_loading()}</div>}
+          >
+            <TranslationReviewPanel
+              apiBase={apiBase}
+              csrfToken={csrfToken}
+              actorId={session.context.actorId}
+              role={session.context.role}
+            />
+          </Suspense>
         </div>
       </main>
     </div>

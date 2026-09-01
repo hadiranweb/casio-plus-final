@@ -35,6 +35,7 @@ import type { ArtifactObjectStore } from './artifact-storage.js';
 import { assertCsrfForCookieRequest } from './auth.js';
 import { withTransaction } from './db.js';
 import { mountIdentityRoutes } from './identity.js';
+import { mountTranslationChangeSetRoutes } from './translation-change-sets.js';
 import { retrieveGovernedMemory, retrieveGovernedMemoryGraph } from './memory-broker.js';
 import {
   mountIntegrationGateway,
@@ -276,6 +277,14 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     } catch (error) {
       next(error);
     }
+  });
+
+  mountTranslationChangeSetRoutes(app, {
+    pool,
+    resolveTenantContext,
+    requireRoles: (context, roles) => requireMembership(pool, context, roles, enforceMembership),
+    error: (statusCode, code) => new HttpError(statusCode, code),
+    requestId,
   });
 
   app.get('/healthz', async (_req, res, next) => {

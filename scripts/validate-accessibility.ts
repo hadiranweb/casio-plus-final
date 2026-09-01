@@ -270,8 +270,8 @@ async function main() {
     const version = await postJson<{ id: string }>(`/api/v1/flows/${flow.id}/versions`, {
       inputSchema: { type: 'object' },
       outputSchema: { type: 'object' },
-      definition: { name: 'accessibility-graph-v1' },
-      runtimeBinding: 'native',
+      definition: { model: 'accessibility-validation-model', maxTokens: 128 },
+      runtimeBinding: 'open-webui',
     });
     await postJson(`/api/v1/flows/${flow.id}/versions/${version.id}/publish`, {});
     const run = await postJson<{ run: { id: string } }>('/api/v1/process-runs', {
@@ -281,6 +281,46 @@ async function main() {
       idempotencyKey: `accessibility-run-${suffix}`,
       input: { business: { name: 'Accessibility validation' } },
     });
+    await postJson(`/api/v1/process-runs/${run.run.id}/events`, {
+      type: 'translation.proposal.succeeded',
+      payload: { fixture: 'accessibility-validation' },
+      occurredAt: new Date().toISOString(),
+      idempotencyKey: `translation-proposal-succeeded-${suffix}`,
+    });
+    const translation = await postJson<{ changeSet: { id: string } }>(
+      '/api/v1/translation-change-sets',
+      {
+        processRunId: run.run.id,
+        repositoryFullName: 'hadiranweb/casio-plus-final',
+        baseRef: 'main',
+        baseCommitSha: 'a'.repeat(40),
+        catalogHash: 'b'.repeat(64),
+        sourceLocale: 'en',
+        targetLocale: 'fa',
+        idempotencyKey: `translation-change-set-${suffix}`,
+        expiresInSeconds: 3600,
+        provenance: {
+          model: 'accessibility-validation-model',
+          promptVersion: 'accessibility-v1',
+        },
+        items: [
+          {
+            messageKey: 'accessibility_translation_fixture',
+            sourceText: 'Review translation {count}',
+            currentTargetText: 'بازبینی ترجمه {count}',
+            proposedText: 'ترجمه {count} را بازبینی کنید',
+            placeholderSignature: ['count'],
+            context: {
+              surface: 'forge',
+              route: '/',
+              description: 'Accessibility-only Translation Change Set fixture',
+            },
+          },
+        ],
+      },
+    );
+    await postJson(`/api/v1/translation-change-sets/${translation.changeSet.id}/submit`, {});
+
     const record = await postJson<{ record: { id: string } }>('/api/v1/semantic-records', {
       workItemId: work.id,
       processRunId: run.run.id,
