@@ -1,0 +1,23 @@
+{
+  "name": "@casioplus/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Casioplus static UI localization runtime, catalogs, and formatters",
+  "scripts": {
+    "build": "paraglide-js compile --project ./project.inlang",
+    "compile": "pnpm build",
+    "check": "pnpm build && tsc --noEmit"
+  },
+  "exports": {
+    "./messages": "./src/paraglide/messages.js",
+    "./runtime": "./src/paraglide/runtime.js",
+    "./server": "./src/paraglide/server.js",
+    "./formatters": "./src/formatters.ts",
+    "./display-labels": "./src/display-labels.ts"
+  },
+  "devDependencies": {
+    "@inlang/paraglide-js": "2.25.0",
+    "typescript": "^5.9.3"
+  }
+}

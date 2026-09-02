@@ -1,3 +1,5 @@
+import { formatStatusLabel } from '@casioplus/i18n/display-labels';
+import { m } from '@casioplus/i18n/messages';
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, KeyRound, Link2, PlugZap, RefreshCw, RotateCw } from 'lucide-react';
 import { requestControlPlaneJson } from './control-plane-api.client.js';
@@ -124,7 +126,7 @@ export default function IntegrationControlPanel({
       setApplicationName('');
       setApplicationKey('');
       setSelectedApplicationId(response.application.id);
-      onNotice('ExternalApp ثبت شد. secret فقط خارج از PostgreSQL نگه‌داری می‌شود.');
+      onNotice(m.console_integration_app_created_notice());
       await loadApplications();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'external_app_creation_failed');
@@ -153,7 +155,7 @@ export default function IntegrationControlPanel({
       setSecretRef('');
       setRetiringKeyId('');
       setRetiringValidUntil('');
-      onNotice('Key metadata ثبت شد؛ مقدار secret وارد Casioplus نشد.');
+      onNotice(m.console_integration_key_created_notice());
       await loadApplications();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'integration_key_creation_failed');
@@ -180,7 +182,7 @@ export default function IntegrationControlPanel({
       setExternalWorkspaceRef('');
       setCallbackOrigin('');
       setCallbackPathPrefix('/');
-      onNotice('ExternalTenant و Workspace mapping در Core resolve و ثبت شد.');
+      onNotice(m.console_integration_mapping_created_notice());
       await loadApplications();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'external_mapping_creation_failed');
@@ -195,7 +197,7 @@ export default function IntegrationControlPanel({
         csrfToken,
         { method: 'POST' },
       );
-      onNotice('Key metadata revoke شد. secret manager باید طبق runbook rotate شود.');
+      onNotice(m.console_integration_key_revoked_notice());
       await loadApplications();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'integration_key_revoke_failed');
@@ -210,7 +212,7 @@ export default function IntegrationControlPanel({
         csrfToken,
         { method: 'POST' },
       );
-      onNotice('External Workspace mapping غیرفعال شد.');
+      onNotice(m.console_integration_mapping_disabled_notice());
       await loadApplications();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'external_mapping_disable_failed');
@@ -225,7 +227,7 @@ export default function IntegrationControlPanel({
         csrfToken,
         { method: 'POST' },
       );
-      onNotice('ExternalApp و تمام درخواست‌های جدید آن غیرفعال شد.');
+      onNotice(m.console_integration_app_disabled_notice());
       await loadApplications();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'external_app_disable_failed');
@@ -236,12 +238,13 @@ export default function IntegrationControlPanel({
     <section className="integration-control" aria-labelledby="integration-control-title">
       <header className="organization-control-heading">
         <div>
-          <span>CONTROL PLANE / INTEGRATION GATEWAY</span>
-          <h3 id="integration-control-title">ExternalApp، کلیدها و mappingها</h3>
-          <p>شناسه‌های خارجی assertion هستند؛ مقصد و privilege فقط در Core resolve می‌شوند.</p>
+          <span>{m.console_integration_control_plane_label()}</span>
+          <h3 id="integration-control-title">{m.console_integration_control_title()}</h3>
+          <p>{m.console_integration_control_description()}</p>
         </div>
         <button className="secondary-action" type="button" onClick={() => void loadApplications()}>
-          <RefreshCw size={15} /> {loading ? 'در حال همگام‌سازی…' : 'تازه‌سازی'}
+          <RefreshCw size={15} />{' '}
+          {loading ? m.console_integration_syncing() : m.console_integration_refresh()}
         </button>
       </header>
 
@@ -250,12 +253,12 @@ export default function IntegrationControlPanel({
           <div className="control-block-title">
             <PlugZap size={18} />
             <div>
-              <strong>ExternalApp جدید</strong>
-              <span>مالک مدیریتی، Organization فعال است.</span>
+              <strong>{m.console_integration_new_app_title()}</strong>
+              <span>{m.console_integration_new_app_desc()}</span>
             </div>
           </div>
           <label>
-            نام
+            {m.console_integration_name_label()}
             <input
               required
               value={applicationName}
@@ -263,7 +266,7 @@ export default function IntegrationControlPanel({
             />
           </label>
           <label>
-            کلید
+            {m.console_integration_key_label()}
             <input
               required
               dir="ltr"
@@ -273,7 +276,7 @@ export default function IntegrationControlPanel({
             />
           </label>
           <button className="secondary-action" type="submit">
-            ثبت ExternalApp
+            {m.console_integration_submit_app()}
           </button>
         </form>
 
@@ -281,17 +284,17 @@ export default function IntegrationControlPanel({
           <div className="control-block-title">
             <PlugZap size={18} />
             <div>
-              <strong>ExternalApp فعال</strong>
-              <span>تمام کنترل‌های پایین به همین application محدودند.</span>
+              <strong>{m.console_integration_active_app_title()}</strong>
+              <span>{m.console_integration_active_app_desc()}</span>
             </div>
           </div>
           <label>
-            Application
+            {m.console_integration_application_label()}
             <select
               value={selectedApplicationId}
               onChange={(event) => setSelectedApplicationId(event.target.value)}
             >
-              <option value="">انتخاب کنید</option>
+              <option value="">{m.console_integration_select_placeholder()}</option>
               {applications.map((application) => (
                 <option
                   key={application.id}
@@ -306,20 +309,20 @@ export default function IntegrationControlPanel({
           {selectedApplication ? (
             <dl>
               <div>
-                <dt>Key</dt>
+                <dt>{m.console_integration_key_label()}</dt>
                 <dd dir="ltr">{selectedApplication.key}</dd>
               </div>
               <div>
-                <dt>Keys</dt>
+                <dt>{m.console_integration_keys_heading()}</dt>
                 <dd>{selectedApplication.keys.length}</dd>
               </div>
               <div>
-                <dt>Mappings</dt>
+                <dt>{m.console_integration_mappings_heading()}</dt>
                 <dd>{selectedApplication.mappings.length}</dd>
               </div>
             </dl>
           ) : (
-            <div className="control-empty">ExternalApp فعالی انتخاب نشده است.</div>
+            <div className="control-empty">{m.console_integration_no_active_app()}</div>
           )}
         </article>
 
@@ -327,12 +330,12 @@ export default function IntegrationControlPanel({
           <div className="control-block-title">
             <KeyRound size={18} />
             <div>
-              <strong>Key metadata و rotation</strong>
-              <span>فقط نام environment secret ثبت می‌شود؛ نه مقدار آن.</span>
+              <strong>{m.console_integration_key_meta_title()}</strong>
+              <span>{m.console_integration_key_meta_desc()}</span>
             </div>
           </div>
           <label>
-            Key ID
+            {m.console_integration_key_id_label()}
             <input
               required
               dir="ltr"
@@ -342,7 +345,7 @@ export default function IntegrationControlPanel({
             />
           </label>
           <label>
-            Secret reference
+            {m.console_integration_secret_ref_label()}
             <input
               required
               dir="ltr"
@@ -354,12 +357,12 @@ export default function IntegrationControlPanel({
           </label>
           <div className="control-form-row">
             <label>
-              کلید retiring
+              {m.console_integration_retiring_key_label()}
               <select
                 value={retiringKeyId}
                 onChange={(event) => setRetiringKeyId(event.target.value)}
               >
-                <option value="">بدون rotation</option>
+                <option value="">{m.console_integration_no_rotation()}</option>
                 {selectedApplication?.keys
                   .filter((item) => item.status === 'active' || item.status === 'retiring')
                   .map((item) => (
@@ -370,7 +373,7 @@ export default function IntegrationControlPanel({
               </select>
             </label>
             <label>
-              اعتبار کلید قبلی تا
+              {m.console_integration_prev_key_validity_label()}
               <input
                 type="datetime-local"
                 disabled={!retiringKeyId}
@@ -381,7 +384,7 @@ export default function IntegrationControlPanel({
             </label>
           </div>
           <button className="secondary-action" disabled={!selectedApplicationId} type="submit">
-            ثبت metadata
+            {m.console_integration_submit_metadata()}
           </button>
         </form>
 
@@ -389,13 +392,13 @@ export default function IntegrationControlPanel({
           <div className="control-block-title">
             <Link2 size={18} />
             <div>
-              <strong>ExternalTenant mapping</strong>
-              <span>Workspace مقصد فقط از scopeهای Organization انتخاب می‌شود.</span>
+              <strong>{m.console_integration_mapping_title()}</strong>
+              <span>{m.console_integration_mapping_desc()}</span>
             </div>
           </div>
           <div className="control-form-row">
             <label>
-              External tenant ref
+              {m.console_integration_ext_tenant_ref_label()}
               <input
                 required
                 dir="ltr"
@@ -404,7 +407,7 @@ export default function IntegrationControlPanel({
               />
             </label>
             <label>
-              External workspace ref
+              {m.console_integration_ext_workspace_ref_label()}
               <input
                 required
                 dir="ltr"
@@ -414,7 +417,7 @@ export default function IntegrationControlPanel({
             </label>
           </div>
           <label>
-            Workspace مقصد
+            {m.console_integration_dest_workspace_label()}
             <select
               required
               value={mappingWorkspaceId}
@@ -431,7 +434,7 @@ export default function IntegrationControlPanel({
           </label>
           <div className="control-form-row">
             <label>
-              Callback origin اختیاری
+              {m.console_integration_callback_origin_label()}
               <input
                 type="url"
                 dir="ltr"
@@ -441,7 +444,7 @@ export default function IntegrationControlPanel({
               />
             </label>
             <label>
-              Path prefix
+              {m.console_integration_path_prefix_label()}
               <input
                 dir="ltr"
                 pattern="/.*"
@@ -456,39 +459,39 @@ export default function IntegrationControlPanel({
             disabled={!selectedApplicationId || !mappingWorkspaceId}
             type="submit"
           >
-            ثبت mapping
+            {m.console_integration_submit_mapping()}
           </button>
         </form>
       </div>
 
       <div className="integration-records">
         {applications.length === 0 ? (
-          <div className="control-empty">ExternalApp ثبت نشده است.</div>
+          <div className="control-empty">{m.console_integration_no_app_registered()}</div>
         ) : (
           applications.map((application) => (
             <article key={application.id} className="integration-record">
               <header>
                 <div>
-                  <strong>{application.name}</strong>
+                  <strong dir="auto">{application.name}</strong>
                   <span dir="ltr">{application.key}</span>
                 </div>
-                <b>{application.status}</b>
+                <b>{formatStatusLabel(application.status)}</b>
                 <button
                   className="danger-text-action"
                   type="button"
                   disabled={application.status !== 'active'}
                   onClick={() => void disableApplication(application.id)}
                 >
-                  <Ban size={14} /> غیرفعال‌سازی
+                  <Ban size={14} /> {m.console_integration_disable_action()}
                 </button>
               </header>
               <div className="integration-record-columns">
                 <div>
                   <h4>
-                    <KeyRound size={14} /> کلیدها
+                    <KeyRound size={14} /> {m.console_integration_keys_heading()}
                   </h4>
                   {application.keys.length === 0 ? (
-                    <p>metadata کلیدی ثبت نشده است.</p>
+                    <p>{m.console_integration_no_key_metadata()}</p>
                   ) : (
                     application.keys.map((item) => (
                       <div className="integration-record-row" key={item.id}>
@@ -496,14 +499,14 @@ export default function IntegrationControlPanel({
                           <strong dir="ltr">{item.keyId}</strong>
                           <span dir="ltr">{item.secretRef}</span>
                         </div>
-                        <b>{item.status}</b>
+                        <b>{formatStatusLabel(item.status)}</b>
                         <button
                           className="danger-text-action"
                           type="button"
                           disabled={!['active', 'retiring'].includes(item.status)}
                           onClick={() => void revokeKey(item.id)}
                         >
-                          <RotateCw size={13} /> revoke
+                          <RotateCw size={13} /> {m.console_integration_revoke_action()}
                         </button>
                       </div>
                     ))
@@ -511,27 +514,27 @@ export default function IntegrationControlPanel({
                 </div>
                 <div>
                   <h4>
-                    <Link2 size={14} /> mappingها
+                    <Link2 size={14} /> {m.console_integration_mappings_heading()}
                   </h4>
                   {application.mappings.length === 0 ? (
-                    <p>Workspace mapping ثبت نشده است.</p>
+                    <p>{m.console_integration_no_workspace_mapping()}</p>
                   ) : (
                     application.mappings.map((item) => (
                       <div className="integration-record-row" key={item.id}>
                         <div>
-                          <strong>{item.workspaceName}</strong>
+                          <strong dir="auto">{item.workspaceName}</strong>
                           <span dir="ltr">
                             {item.externalTenantRef} / {item.externalWorkspaceRef}
                           </span>
                         </div>
-                        <b>{item.status}</b>
+                        <b>{formatStatusLabel(item.status)}</b>
                         <button
                           className="danger-text-action"
                           type="button"
                           disabled={item.status !== 'active'}
                           onClick={() => void disableMapping(item.id)}
                         >
-                          غیرفعال‌سازی
+                          {m.console_integration_disable_action()}
                         </button>
                       </div>
                     ))

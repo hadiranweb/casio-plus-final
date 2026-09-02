@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@casioplus/contracts": "workspace:*",
     "zod": "^4.1.12"
   },
   "devDependencies": {

@@ -1,3 +1,6 @@
+import { formatStatusLabel } from '@casioplus/i18n/display-labels';
+import { formatDateTime } from '@casioplus/i18n/formatters';
+import { m } from '@casioplus/i18n/messages';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CircleAlert, Clock3, Play, RefreshCw, ShieldCheck } from 'lucide-react';
 
@@ -122,7 +125,7 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
         method: 'POST',
         body: '{}',
       });
-      setNotice('اجرا از Core queue شد. status و result فقط از ledger canonical خوانده می‌شود.');
+      setNotice(m.forge_run_queued_notice());
     } catch (requestError) {
       const apiError = requestError as Error & { status?: number };
       if (apiError.status === 409 && apiError.message === 'openclaw_approval_required') {
@@ -130,7 +133,7 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
           method: 'POST',
           body: JSON.stringify({ processRunId, expiresInSeconds: 900 }),
         });
-        setNotice('درخواست اقدام ثبت شد و تا تصمیم انسانی در Approval Inbox اجرا نمی‌شود.');
+        setNotice(m.forge_run_approval_notice());
         return;
       }
       throw requestError;
@@ -180,8 +183,12 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
   return (
     <section className="run-control-panel" aria-labelledby="run-control-heading">
       <div className="inspector-head">
-        <span id="run-control-heading">RUN CONTROL</span>
-        <button type="button" onClick={() => void loadRuns()} aria-label="تازه‌سازی اجراها">
+        <span id="run-control-heading">{m.forge_run_control_title()}</span>
+        <button
+          type="button"
+          onClick={() => void loadRuns()}
+          aria-label={m.forge_run_refresh_aria()}
+        >
           <RefreshCw size={14} />
         </button>
       </div>
@@ -189,37 +196,39 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
       {!flow || !activeVersion ? (
         <div className="run-control-empty">
           <ShieldCheck size={18} />
-          <span>برای اجرا ابتدا یک version را منتشر کنید.</span>
+          <span>{m.forge_run_publish_first()}</span>
         </div>
       ) : (
         <>
           <div className="active-version-line">
-            <span>version فعال</span>
-            <strong>v{activeVersion.version}</strong>
-            <small>{activeVersion.runtimeBinding}</small>
+            <span>{m.forge_run_active_version()}</span>
+            <strong dir="ltr">v{activeVersion.version}</strong>
+            <small dir="ltr">{activeVersion.runtimeBinding}</small>
           </div>
           <form onSubmit={execute} className="run-form">
             <label>
-              عنوان Work
+              {m.forge_run_work_title_label()}
               <input
+                dir="auto"
                 value={workTitle}
                 onChange={(event) => setWorkTitle(event.target.value)}
                 maxLength={200}
-                placeholder="هدف مشخص این اجرا"
+                placeholder={m.forge_run_work_title_placeholder()}
                 required
               />
             </label>
             <label>
-              intent
+              {m.forge_run_intent_label()}
               <input
+                dir="auto"
                 value={workIntent}
                 onChange={(event) => setWorkIntent(event.target.value)}
                 maxLength={2_000}
-                placeholder="نتیجهٔ مورد انتظار"
+                placeholder={m.forge_run_intent_placeholder()}
               />
             </label>
             <label>
-              input.json
+              <span dir="ltr">input.json</span>
               <textarea
                 dir="ltr"
                 spellCheck={false}
@@ -230,7 +239,7 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
             </label>
             <button className="run-action" type="submit" disabled={loading || !workTitle.trim()}>
               <Play size={14} />
-              {loading ? 'در حال ثبت…' : 'ثبت و اجرا'}
+              {loading ? m.forge_saving() : m.forge_run_submit_execute()}
             </button>
           </form>
         </>
@@ -253,16 +262,16 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
         {runs.length === 0 ? (
           <div className="run-control-empty">
             <Clock3 size={18} />
-            <span>اجرایی برای Flow انتخاب‌شده ثبت نشده است.</span>
+            <span>{m.forge_run_none()}</span>
           </div>
         ) : (
           runs.slice(0, 8).map((run) => (
             <article key={run.id}>
               <div>
-                <strong>{run.status}</strong>
-                <span>{new Date(run.createdAt).toLocaleString('fa-IR')}</span>
+                <strong>{formatStatusLabel(run.status)}</strong>
+                <span>{formatDateTime(run.createdAt)}</span>
               </div>
-              {run.errorCode && <code>{run.errorCode}</code>}
+              {run.errorCode && <code dir="ltr">{run.errorCode}</code>}
               {run.status === 'queued' && (
                 <button
                   className="resume-run-action"
@@ -283,10 +292,10 @@ export default function RunControlPanel({ apiBase, csrfToken, flow, versions }: 
                       .finally(() => setLoading(false));
                   }}
                 >
-                  ادامهٔ اجرا
+                  {m.forge_run_resume()}
                 </button>
               )}
-              {run.output && <pre>{formatValue(run.output)}</pre>}
+              {run.output && <pre dir="ltr">{formatValue(run.output)}</pre>}
             </article>
           ))
         )}

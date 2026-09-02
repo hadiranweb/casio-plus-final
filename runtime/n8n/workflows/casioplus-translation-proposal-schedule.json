@@ -1,0 +1,138 @@
+{
+  "id": "d0a4e5f1-4a7d-4ef4-8f2c-2a6e3d57c910",
+  "name": "Casioplus Translation Proposal Schedule",
+  "active": false,
+  "nodes": [
+    {
+      "id": "0f3e2d1c-7b6a-4d5e-8f90-1234567890ab",
+      "name": "Every Fifteen Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-560, 0],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "1a2b3c4d-5e6f-4789-8abc-def012345678",
+      "name": "Read Canonical Catalog Snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-320, 0],
+      "parameters": {
+        "url": "={{ $env.CASIOPLUS_GITHUB_APP_INTERNAL_URL + '/internal/v1/translation-catalog-snapshot' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-casioplus-adapter-secret",
+              "value": "={{ $env.ADAPTER_SHARED_SECRET }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "2b3c4d5e-6f70-489a-9bcd-ef0123456789",
+      "name": "Build Proposal Tick",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const snapshot = items[0]?.json;\nif (!snapshot || snapshot.repositoryFullName !== 'hadiranweb/casio-plus-final' || snapshot.baseRef !== 'main' || snapshot.sourceLocale !== 'en' || snapshot.targetLocale !== 'fa') {\n  throw new Error('translation_catalog_snapshot_invalid');\n}\nreturn [{ json: { ...snapshot, requestedAt: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "3c4d5e6f-7081-49ab-acde-f0123456789a",
+      "name": "Tick Due Proposal Schedules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [160, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CASIOPLUS_CORE_INTERNAL_URL + '/internal/v1/translation-proposal-schedules/tick' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-casioplus-scheduler-secret",
+              "value": "={{ $env.TRANSLATION_SCHEDULER_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 120000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Fifteen Minutes": {
+      "main": [
+        [
+          {
+            "node": "Read Canonical Catalog Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Canonical Catalog Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Build Proposal Tick",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Proposal Tick": {
+      "main": [
+        [
+          {
+            "node": "Tick Due Proposal Schedules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "executionTimeout": 120
+  },
+  "meta": {
+    "casioplusSchemaVersion": "casioplus.n8n.workflow.v1",
+    "triggerType": "schedule",
+    "requiredEnvironmentVariables": [
+      "CASIOPLUS_GITHUB_APP_INTERNAL_URL",
+      "ADAPTER_SHARED_SECRET",
+      "CASIOPLUS_CORE_INTERNAL_URL",
+      "TRANSLATION_SCHEDULER_SECRET"
+    ],
+    "activationRequiresEnvironmentBinding": true,
+    "proposalOnly": true
+  }
+}

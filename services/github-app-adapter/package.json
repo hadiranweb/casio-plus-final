@@ -1,0 +1,23 @@
+{
+  "name": "@casioplus/github-app-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Allowlisted GitHub App boundary for translation pull requests and signed webhooks",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@casioplus/contracts": "workspace:*",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

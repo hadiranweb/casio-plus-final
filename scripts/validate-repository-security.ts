@@ -5,7 +5,11 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const root = resolve(import.meta.dirname, '..');
-const { stdout } = await execFileAsync('git', ['ls-files', '-z'], { cwd: root });
+const { stdout } = await execFileAsync(
+  'git',
+  ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+  { cwd: root },
+);
 const trackedFiles = stdout.split('\0').filter(Boolean);
 
 const violations: string[] = [];
@@ -80,6 +84,49 @@ for (const relativePath of trackedFiles) {
   }
 }
 
+const githubClientPath = 'services/github-app-adapter/src/github-client.ts';
+const githubServerPath = 'services/github-app-adapter/src/server.ts';
+if (trackedFiles.includes(githubClientPath) || trackedFiles.includes(githubServerPath)) {
+  const githubClient = await readFile(resolve(root, githubClientPath), 'utf8');
+  const githubServer = await readFile(resolve(root, githubServerPath), 'utf8');
+  const sharedContracts = await readFile(resolve(root, 'packages/contracts/src/index.ts'), 'utf8');
+  if (/\/pulls\/[^'"`]+\/merge|\/merges(?:[?'"`/]|$)/.test(githubClient)) {
+    violations.push('GitHub App adapter must not contain a merge endpoint');
+  }
+  for (const required of [
+    "repositoryFullName: z.literal('hadiranweb/casio-plus-final')",
+    "catalogPath: z.literal('packages/i18n/messages/fa.json')",
+  ]) {
+    if (!sharedContracts.includes(required)) {
+      violations.push(`GitHub App shared scope guard missing: ${required}`);
+    }
+  }
+  const permissionGuards = [
+    {
+      name: 'translation PR write permissions',
+      pattern:
+        /metadata:\s*'read'[\s\S]{0,120}contents:\s*'write'[\s\S]{0,120}pull_requests:\s*'write'/,
+    },
+    {
+      name: 'catalog snapshot read-only permission',
+      pattern: /metadata:\s*'read'[\s\S]{0,120}contents:\s*'read'/,
+    },
+  ];
+  for (const guard of permissionGuards) {
+    if (!guard.pattern.test(githubClient)) {
+      violations.push(`GitHub App adapter scope guard missing: ${guard.name}`);
+    }
+  }
+  if (!githubClient.includes('maintainer_can_modify: false')) {
+    violations.push('GitHub App adapter scope guard missing: maintainer_can_modify: false');
+  }
+  const webhookSignatureCheck = githubServer.indexOf('const expected = `sha256=${createHmac');
+  const webhookParse = githubServer.indexOf('pullRequestWebhookSchema.parse(parseJson(rawBody))');
+  if (webhookSignatureCheck < 0 || webhookParse < 0 || webhookSignatureCheck > webhookParse) {
+    violations.push('GitHub webhook raw-body signature must be verified before JSON parsing');
+  }
+}
+
 if (violations.length > 0) {
   throw new Error(`Repository security validation failed:\n${violations.join('\n')}`);
 }
@@ -93,5 +140,7 @@ console.log(
     nonCoreDatabaseViolations: 0,
     secretViolations: 0,
     surfaceNamingViolations: 0,
+    githubAppMergeEndpoints: 0,
+    githubAppScopeViolations: 0,
   }),
 );

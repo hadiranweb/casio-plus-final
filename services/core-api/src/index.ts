@@ -57,6 +57,7 @@ const app = createApp(pool, {
     : persistentTenantContext(pool, sessionSecret ?? ''),
   integrationSecrets,
   dispatcherSecret,
+  schedulerSecret: process.env.TRANSLATION_SCHEDULER_SECRET,
   artifactObjectStore,
 });
 

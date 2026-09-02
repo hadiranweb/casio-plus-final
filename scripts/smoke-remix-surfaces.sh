@@ -30,22 +30,47 @@ start_surface() {
 start_surface console-web "$APP_PORT"
 start_surface forge-web "$FORGE_PORT"
 
-check_surface() {
+assert_safe_html() {
   local surface="$1"
-  local port="$2"
-  local html_path="/tmp/casioplus-${surface}-remix-smoke.html"
-  curl --retry 15 --retry-connrefused --retry-delay 1 --fail --silent --show-error \
-    "http://127.0.0.1:${port}/" -o "$html_path"
+  local html_path="$2"
   test -s "$html_path"
-  grep -q '<html lang="fa" dir="rtl">' "$html_path"
   grep -q 'Casioplus' "$html_path"
   grep -q "$CORE_URL" "$html_path"
   if grep -Eq 'SESSION_SECRET|DATABASE_URL|RUNTIME_SHARED_SECRET' "$html_path"; then
     echo "Secret marker found in ${surface} HTML" >&2
     return 1
   fi
+}
+
+check_surface() {
+  local surface="$1"
+  local port="$2"
+  local document_marker="$3"
+  local html_path="/tmp/casioplus-${surface}-remix-smoke.html"
+  curl --retry 15 --retry-connrefused --retry-delay 1 --fail --silent --show-error \
+    "http://127.0.0.1:${port}/" -o "$html_path"
+  assert_safe_html "$surface" "$html_path"
+  grep -Fq "$document_marker" "$html_path"
   printf 'REMIX_SSR_SMOKE_PASS %s\n' "$surface"
 }
 
-check_surface console-web "$APP_PORT"
-check_surface forge-web "$FORGE_PORT"
+check_persian_cookie() {
+  local surface="$1"
+  local port="$2"
+  local html_path="/tmp/casioplus-${surface}-remix-smoke-fa.html"
+  curl --fail --silent --show-error \
+    --header 'Cookie: CASIOPLUS_LOCALE=fa' \
+    "http://127.0.0.1:${port}/" -o "$html_path"
+  assert_safe_html "${surface}-fa" "$html_path"
+  grep -Fq '<html lang="fa" dir="rtl" data-locale="fa">' "$html_path"
+  if grep -Fq '<html lang="en" dir="ltr" data-locale="en">' "$html_path"; then
+    echo "English document marker leaked into Persian ${surface} response" >&2
+    return 1
+  fi
+  printf 'REMIX_SSR_SMOKE_PASS %s\n' "${surface}-fa"
+}
+
+check_surface console-web "$APP_PORT" '<html lang="en" dir="ltr" data-locale="en">'
+check_persian_cookie console-web "$APP_PORT"
+check_surface forge-web "$FORGE_PORT" '<html lang="en" dir="ltr" data-locale="en">'
+check_persian_cookie forge-web "$FORGE_PORT"

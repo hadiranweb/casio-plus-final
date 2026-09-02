@@ -124,7 +124,7 @@ export const acceptInvitationSchema = z.object({
 export const integrationIngressSchema = z.object({
   externalTenantRef: z.string().trim().min(1).max(300),
   externalWorkspaceRef: z.string().trim().min(1).max(300),
-  operation: z.string().regex(/^(n8n|model|action)\.[a-z][a-z0-9_.-]{1,120}$/),
+  operation: z.string().regex(/^(n8n|model|action|repository)\.[a-z][a-z0-9_.-]{1,120}$/),
   idempotencyKey: z.string().trim().min(16).max(200),
   payload: z.record(z.string(), z.unknown()).default({}),
 });
@@ -178,6 +178,8 @@ export const openWebUiRuntimeDefinitionSchema = z.object({
   maxTokens: z.number().int().min(1).max(131_072).optional(),
 });
 
+export const repositoryActionSchema = z.enum(['send_message', 'repository.open_translation_pr']);
+
 export const openClawRuntimeDefinitionSchema = z.object({
   action: z.literal('send_message'),
   targetKey: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
@@ -185,7 +187,7 @@ export const openClawRuntimeDefinitionSchema = z.object({
 
 export const createActionTargetSchema = organizationContextSchema.extend({
   key: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
-  action: z.literal('send_message'),
+  action: repositoryActionSchema,
   executorRef: z.string().regex(/^[a-z][a-z0-9_.-]{2,127}$/),
 });
 
@@ -193,7 +195,7 @@ export const createActionPolicySchema = organizationContextSchema.extend({
   flowId: identifierSchema,
   flowVersionId: identifierSchema,
   targetId: identifierSchema,
-  action: z.literal('send_message'),
+  action: repositoryActionSchema,
   riskClass: z.enum(['low', 'medium', 'high']),
   validFrom: z.string().datetime().optional(),
   validUntil: z.string().datetime().nullable().optional(),
@@ -208,6 +210,237 @@ export const decideActionApprovalSchema = organizationContextSchema.extend({
   decision: z.enum(['approved', 'rejected']),
   reason: z.string().trim().min(1).max(2000),
 });
+
+export const translationLocaleSchema = z.enum(['en', 'fa']);
+const translationTextSchema = z
+  .string()
+  .min(1)
+  .max(20_000)
+  .refine((value) => value.trim().length > 0, 'translation_text_must_not_be_blank');
+const translationItemContextSchema = z
+  .object({
+    surface: z.enum(['console', 'forge', 'shared']),
+    route: z.string().trim().min(1).max(200).optional(),
+    description: z.string().trim().min(1).max(1000).optional(),
+    characterLimit: z.number().int().min(1).max(20_000).optional(),
+  })
+  .strict();
+const translationProvenanceSchema = z
+  .object({
+    model: z.string().trim().min(1).max(200).optional(),
+    modelVersion: z.string().trim().min(1).max(200).optional(),
+    promptVersion: z.string().trim().min(1).max(200).optional(),
+    glossaryVersion: z.string().trim().min(1).max(200).optional(),
+    scheduleId: identifierSchema.optional(),
+  })
+  .strict();
+const translationMessageKeySchema = z.string().regex(/^[a-z][a-z0-9_]{2,199}$/);
+const translationCommitShaSchema = z.string().regex(/^[a-f0-9]{40}$/);
+const translationHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
+export const translationChangeSetItemInputSchema = z.object({
+  messageKey: translationMessageKeySchema,
+  sourceText: translationTextSchema,
+  currentTargetText: translationTextSchema.nullable().optional(),
+  proposedText: translationTextSchema,
+  placeholderSignature: z
+    .array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/))
+    .max(50)
+    .default([]),
+  context: translationItemContextSchema,
+});
+
+export const createTranslationChangeSetSchema = organizationContextSchema
+  .extend({
+    processRunId: identifierSchema,
+    repositoryFullName: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+    baseRef: z.string().regex(/^[A-Za-z0-9._/-]{1,200}$/),
+    baseCommitSha: translationCommitShaSchema,
+    catalogHash: translationHashSchema,
+    sourceLocale: translationLocaleSchema,
+    targetLocale: translationLocaleSchema,
+    idempotencyKey: z.string().trim().min(16).max(200),
+    expiresInSeconds: z.number().int().min(300).max(604_800).default(86_400),
+    provenance: translationProvenanceSchema.default({}),
+    items: z.array(translationChangeSetItemInputSchema).min(1).max(500),
+  })
+  .refine((value) => value.sourceLocale !== value.targetLocale, {
+    message: 'translation_locales_must_differ',
+    path: ['targetLocale'],
+  });
+
+export const submitTranslationChangeSetSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+});
+
+export const reviewTranslationChangeSetItemSchema = organizationContextSchema
+  .extend({
+    changeSetId: identifierSchema,
+    itemId: identifierSchema,
+    decision: z.enum(['accepted', 'edited', 'rejected']),
+    reviewedText: translationTextSchema.optional(),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .superRefine((value, context) => {
+    if (value.decision === 'edited' && !value.reviewedText) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'reviewed_text_required_for_edited_translation',
+        path: ['reviewedText'],
+      });
+    }
+    if (value.decision !== 'edited' && value.reviewedText !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'reviewed_text_only_allowed_for_edited_translation',
+        path: ['reviewedText'],
+      });
+    }
+  });
+
+export const completeTranslationChangeSetReviewSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+});
+
+export const requestTranslationRepositoryApprovalSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+  expiresInSeconds: z.number().int().min(60).max(86_400),
+});
+
+export const queueTranslationRepositorySyncSchema = organizationContextSchema.extend({
+  changeSetId: identifierSchema,
+});
+
+export const translationRepositoryItemSchema = z
+  .object({
+    messageKey: translationMessageKeySchema,
+    sourceText: translationTextSchema,
+    currentTargetText: translationTextSchema.nullable(),
+    reviewedText: translationTextSchema,
+    sourceHash: translationHashSchema,
+    currentTargetHash: translationHashSchema.nullable(),
+    placeholderSignature: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)).max(50),
+  })
+  .strict();
+
+export const repositoryOpenTranslationPrPayloadSchema = z
+  .object({
+    action: z.literal('repository.open_translation_pr'),
+    executorRef: z.literal('github-app.casio-plus-final'),
+    changeSetId: identifierSchema,
+    approvalId: identifierSchema,
+    processRunId: identifierSchema,
+    repositoryFullName: z.literal('hadiranweb/casio-plus-final'),
+    baseRef: z.literal('main'),
+    baseCommitSha: translationCommitShaSchema,
+    catalogHash: translationHashSchema,
+    sourceLocale: z.literal('en'),
+    targetLocale: z.literal('fa'),
+    branchRef: z.string().regex(/^casioplus\/translation\/[a-f0-9-]{36}$/),
+    catalogPath: z.literal('packages/i18n/messages/fa.json'),
+    sourceCatalogPath: z.literal('packages/i18n/messages/en.json'),
+    items: z.array(translationRepositoryItemSchema).min(1).max(500),
+    idempotencyKey: z.string().trim().min(16).max(200),
+    expiresAt: z.string().datetime(),
+  })
+  .strict();
+
+export const translationRepositoryWebhookEventSchema = z
+  .object({
+    action: z.enum(['opened', 'reopened', 'synchronize', 'closed']),
+    changeSetId: identifierSchema,
+    repositoryFullName: z.literal('hadiranweb/casio-plus-final'),
+    baseRef: z.literal('main'),
+    branchRef: z.string().regex(/^casioplus\/translation\/[a-f0-9-]{36}$/),
+    pullRequestNumber: z.number().int().positive(),
+    pullRequestUrl: z
+      .string()
+      .regex(/^https:\/\/github\.com\/hadiranweb\/casio-plus-final\/pull\/[0-9]+$/),
+    pullRequestHeadSha: translationCommitShaSchema,
+    merged: z.boolean(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.changeSetId !== value.branchRef.slice('casioplus/translation/'.length)) {
+      context.addIssue({ code: 'custom', message: 'translation_branch_change_set_mismatch' });
+    }
+    if (value.merged && value.action !== 'closed') {
+      context.addIssue({ code: 'custom', message: 'translation_merged_event_invalid' });
+    }
+  });
+
+const translationScheduleKeyPrefixSchema = z
+  .string()
+  .max(100)
+  .regex(/^(?:[a-z][a-z0-9_]{1,99})?$/);
+const translationCatalogSchema = z
+  .record(translationMessageKeySchema, translationTextSchema)
+  .refine((catalog) => Object.keys(catalog).length <= 5_000, {
+    message: 'translation_catalog_item_limit_exceeded',
+  });
+
+export const createTranslationProposalScheduleSchema = organizationContextSchema.extend({
+  flowId: identifierSchema,
+  flowVersionId: identifierSchema,
+  scheduleKey: z.string().regex(/^[a-z0-9][a-z0-9._-]{2,79}$/),
+  cadenceSeconds: z.number().int().min(21_600).max(2_678_400),
+  maxItems: z.number().int().min(1).max(100).default(50),
+  messageKeyPrefixes: z.array(translationScheduleKeyPrefixSchema).min(1).max(20).default(['']),
+  nextRunAt: z.string().datetime(),
+  status: z.enum(['paused', 'active']).default('paused'),
+});
+
+export const updateTranslationProposalScheduleSchema = organizationContextSchema
+  .extend({
+    scheduleId: identifierSchema,
+    cadenceSeconds: z.number().int().min(21_600).max(2_678_400).optional(),
+    maxItems: z.number().int().min(1).max(100).optional(),
+    messageKeyPrefixes: z.array(translationScheduleKeyPrefixSchema).min(1).max(20).optional(),
+    nextRunAt: z.string().datetime().optional(),
+    status: z.enum(['paused', 'active', 'expired']).optional(),
+  })
+  .refine(
+    (value) =>
+      value.cadenceSeconds !== undefined ||
+      value.maxItems !== undefined ||
+      value.messageKeyPrefixes !== undefined ||
+      value.nextRunAt !== undefined ||
+      value.status !== undefined,
+    { message: 'translation_schedule_update_empty' },
+  );
+
+export const translationCatalogSnapshotSchema = z
+  .object({
+    repositoryFullName: z.literal('hadiranweb/casio-plus-final'),
+    baseRef: z.literal('main'),
+    baseCommitSha: translationCommitShaSchema,
+    catalogHash: translationHashSchema,
+    sourceLocale: z.literal('en'),
+    targetLocale: z.literal('fa'),
+    sourceCatalog: translationCatalogSchema,
+    targetCatalog: translationCatalogSchema,
+  })
+  .strict();
+
+export const tickTranslationProposalSchedulesSchema = translationCatalogSnapshotSchema.extend({
+  requestedAt: z.string().datetime(),
+});
+
+export const scheduledTranslationProposalOutputSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            messageKey: translationMessageKeySchema,
+            proposedText: translationTextSchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict();
 
 export const runtimeEventSchema = organizationContextSchema.extend({
   processRunId: identifierSchema.nullable(),
@@ -261,7 +494,11 @@ export const createPricingAssumptionSchema = organizationContextSchema.extend({
 
 export const createRuntimeMeterBindingSchema = organizationContextSchema.extend({
   runtime: z.enum(['open-webui', 'openclaw']),
-  operation: z.enum(['model.chat.complete', 'action.send_message']),
+  operation: z.enum([
+    'model.chat.complete',
+    'action.send_message',
+    'action.repository.open_translation_pr',
+  ]),
   resourceKey: z.string().trim().min(1).max(200),
   pricingVersionId: identifierSchema,
   currency: z.string().regex(/^[A-Z]{3}$/),
@@ -414,6 +651,23 @@ export type CreateFlowInput = z.infer<typeof createFlowSchema>;
 export type CreateFlowVersionInput = z.infer<typeof createFlowVersionSchema>;
 export type CreateProcessRunInput = z.infer<typeof createProcessRunSchema>;
 export type RuntimeEventInput = z.infer<typeof runtimeEventSchema>;
+export type CreateTranslationChangeSetInput = z.infer<typeof createTranslationChangeSetSchema>;
+export type CreateTranslationProposalScheduleInput = z.infer<
+  typeof createTranslationProposalScheduleSchema
+>;
+export type UpdateTranslationProposalScheduleInput = z.infer<
+  typeof updateTranslationProposalScheduleSchema
+>;
+export type TranslationCatalogSnapshot = z.infer<typeof translationCatalogSnapshotSchema>;
+export type TickTranslationProposalSchedulesInput = z.infer<
+  typeof tickTranslationProposalSchedulesSchema
+>;
+export type ScheduledTranslationProposalOutput = z.infer<
+  typeof scheduledTranslationProposalOutputSchema
+>;
+export type ReviewTranslationChangeSetItemInput = z.infer<
+  typeof reviewTranslationChangeSetItemSchema
+>;
 export type CreateArtifactInput = z.infer<typeof createArtifactSchema>;
 export type CreateArtifactUploadInput = z.infer<typeof createArtifactUploadSchema>;
 export type CompleteArtifactUploadInput = z.infer<typeof completeArtifactUploadSchema>;

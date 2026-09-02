@@ -8,12 +8,14 @@ exposure_model:
     - console-web
     - forge-web
     - core-api-browser-endpoint
+    - github-webhook-endpoint-only
   internal_only:
     - native-diagnosis-worker
     - integration-dispatcher
     - n8n-adapter
     - open-webui-adapter
     - openclaw-adapter
+    - github-app-adapter
     - n8n-runtime
     - open-webui-runtime
     - openclaw-runtime
@@ -74,12 +76,27 @@ units:
     docker_build_validation: ci
   n8n-runtime:
     path: runtime/n8n
-    status: workflow-template-validated
+    status: workflow-templates-validated-inactive
     image: n8nio/n8n:2.36.8
     role: orchestrator-only
     public: false
     canonical_store_access: false
     persistence: runtime-internal-only
+    workflows:
+      - name: Casioplus Runtime Execution
+        trigger: authenticated-webhook
+        active_in_repository: false
+      - name: Casioplus Translation Proposal Schedule
+        trigger: every-15-minutes
+        active_in_repository: false
+        source: github-app-read-only-canonical-catalog-snapshot
+        destination: core-signed-translation-proposal-tick
+        output_lifecycle: draft-change-set-only
+        auto_review: false
+        auto_approval: false
+        auto_pull_request: false
+        auto_merge: false
+        auto_release: false
   open-webui-adapter:
     path: services/open-webui-adapter
     status: authenticated-model-only-boundary
@@ -105,6 +122,19 @@ units:
     health: /healthz
     canonical_store_access: false
     dockerfile: deployment/Dockerfile.openclaw-adapter
+    docker_build_validation: ci
+  github-app-adapter:
+    path: services/github-app-adapter
+    status: approval-bound-translation-pull-request-boundary
+    public: false
+    port: 8085
+    health: /healthz
+    canonical_store_access: false
+    repository_scope: hadiranweb/casio-plus-final
+    base_ref_scope: main
+    catalog_path_scope: packages/i18n/messages/fa.json
+    auto_merge: false
+    dockerfile: deployment/Dockerfile.github-app-adapter
     docker_build_validation: ci
   openclaw-runtime:
     path: runtime/openclaw
@@ -140,9 +170,12 @@ promotion:
     - n8n-adapter-authentication
     - open-webui-model-only-contract
     - openclaw-approval-and-target-resolution
+    - translation-change-set-four-eyes-review
+    - github-app-minimum-permissions-and-webhook-signature
+    - translation-pull-request-no-auto-merge
     - runtime-usage-attribution
     - golden-flow-e2e
-    - accessibility-six-state
+    - accessibility-twelve-state-en-fa
     - performance-budgets
     - independent-design-audit
     - artifact-delivery

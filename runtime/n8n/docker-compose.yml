@@ -37,9 +37,13 @@ services:
       EXECUTIONS_DATA_MAX_AGE: ${N8N_EXECUTIONS_DATA_MAX_AGE:-168}
       N8N_DIAGNOSTICS_ENABLED: 'false'
       N8N_PERSONALIZATION_ENABLED: 'false'
+      CASIOPLUS_GITHUB_APP_INTERNAL_URL: ${CASIOPLUS_GITHUB_APP_INTERNAL_URL:-http://github-app-adapter:8085}
+      ADAPTER_SHARED_SECRET: ${ADAPTER_SHARED_SECRET:?required}
+      CASIOPLUS_CORE_INTERNAL_URL: ${CASIOPLUS_CORE_INTERNAL_URL:-http://core-api:8080}
+      TRANSLATION_SCHEDULER_SECRET: ${TRANSLATION_SCHEDULER_SECRET:?required}
     volumes:
       - n8n-data:/home/node/.n8n
-    networks: [n8n-runtime]
+    networks: [n8n-runtime, casioplus-runtime]
 
   n8n-adapter:
     build:

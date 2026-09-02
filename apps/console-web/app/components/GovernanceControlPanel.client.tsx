@@ -1,3 +1,6 @@
+import { formatDateTime, formatMoney } from '@casioplus/i18n/formatters';
+import { formatStatusLabel } from '@casioplus/i18n/display-labels';
+import { m } from '@casioplus/i18n/messages';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Ban,
@@ -108,18 +111,14 @@ function isoFromLocal(value: string) {
 }
 
 function formatCurrency(value: string | undefined, currency: string | undefined) {
-  if (!value || !currency) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 8,
-  }).format(Number(value));
+  if (!value || !currency) return m.console_governance_empty_dash();
+  return formatMoney(Number(value), currency, { maximumFractionDigits: 8 });
 }
 
 function safeJson(value: string) {
   const parsed = JSON.parse(value) as unknown;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('assumptions_must_be_object');
+    throw new Error(m.console_governance_assumptions_must_be_object());
   }
   return parsed as Record<string, unknown>;
 }
@@ -255,7 +254,9 @@ export default function GovernanceControlPanel({
           '',
       );
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'governance_load_failed');
+      setError(
+        requestError instanceof Error ? requestError.message : m.console_governance_load_failed(),
+      );
     } finally {
       setLoading(false);
     }
@@ -291,7 +292,9 @@ export default function GovernanceControlPanel({
       })
       .catch((requestError: unknown) => {
         setError(
-          requestError instanceof Error ? requestError.message : 'flow_versions_load_failed',
+          requestError instanceof Error
+            ? requestError.message
+            : m.console_governance_flow_versions_load_failed(),
         );
       });
   }, [apiBase, csrfToken, policyFlowId]);
@@ -306,7 +309,9 @@ export default function GovernanceControlPanel({
       await load();
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : 'governance_operation_failed',
+        requestError instanceof Error
+          ? requestError.message
+          : m.console_governance_operation_failed(),
       );
     } finally {
       setPending(false);
@@ -316,7 +321,7 @@ export default function GovernanceControlPanel({
   const decide = (approval: Approval, decision: 'approved' | 'rejected') => {
     const reason = decisionReasons[approval.id]?.trim();
     if (!reason) {
-      setError('برای تصمیم approval دلیل ثبت کنید.');
+      setError(m.console_governance_provide_reason_for_decision());
       return;
     }
     void perform(
@@ -329,8 +334,8 @@ export default function GovernanceControlPanel({
         );
       },
       decision === 'approved'
-        ? 'اقدام تأیید شد؛ execution همچنان فقط از Core انجام می‌شود.'
-        : 'اقدام رد شد.',
+        ? m.console_governance_action_approved()
+        : m.console_governance_action_rejected(),
     );
   };
 
@@ -339,8 +344,8 @@ export default function GovernanceControlPanel({
       <section className="governance-control" id="governance">
         <header>
           <div>
-            <span>GOVERNANCE CONTROL</span>
-            <h2>این role به Approval Inbox دسترسی ندارد.</h2>
+            <span>{m.console_governance_control_title()}</span>
+            <h2>{m.console_governance_no_access_heading()}</h2>
           </div>
           <ShieldCheck size={20} />
         </header>
@@ -352,13 +357,15 @@ export default function GovernanceControlPanel({
     <section className="governance-control" id="governance" aria-labelledby="governance-heading">
       <header>
         <div>
-          <span>GOVERNANCE CONTROL</span>
-          <h2 id="governance-heading">Approval، runtime policy و economics</h2>
-          <p>
-            همهٔ تصمیم‌ها و bindingها از Core ثبت می‌شوند؛ Console secret یا privilege حمل نمی‌کند.
-          </p>
+          <span>{m.console_governance_control_title()}</span>
+          <h2 id="governance-heading">{m.console_governance_heading()}</h2>
+          <p>{m.console_governance_description()}</p>
         </div>
-        <button type="button" onClick={() => void load()} aria-label="تازه‌سازی governance">
+        <button
+          type="button"
+          onClick={() => void load()}
+          aria-label={m.console_governance_refresh_aria()}
+        >
           <RefreshCw size={16} />
         </button>
       </header>
@@ -367,7 +374,11 @@ export default function GovernanceControlPanel({
         <div className="governance-message error">
           <CircleAlert size={15} />
           <span>{error}</span>
-          <button type="button" onClick={() => setError('')} aria-label="بستن خطا">
+          <button
+            type="button"
+            onClick={() => setError('')}
+            aria-label={m.console_governance_close_error_aria()}
+          >
             <X size={14} />
           </button>
         </div>
@@ -386,15 +397,15 @@ export default function GovernanceControlPanel({
         >
           <div className="lane-heading">
             <div>
-              <span>HUMAN GATE</span>
-              <h3 id="approval-inbox-heading">Approval Inbox</h3>
+              <span>{m.console_governance_human_gate()}</span>
+              <h3 id="approval-inbox-heading">{m.console_governance_approval_inbox()}</h3>
             </div>
             <b>{approvals.length}</b>
           </div>
           {loading ? (
-            <div className="governance-empty">در حال بارگذاری تصمیم‌های pending…</div>
+            <div className="governance-empty">{m.console_governance_loading_pending()}</div>
           ) : approvals.length === 0 ? (
-            <div className="governance-empty">درخواست pending وجود ندارد.</div>
+            <div className="governance-empty">{m.console_governance_no_pending()}</div>
           ) : (
             <div className="approval-list">
               {approvals.map((approval) => (
@@ -402,11 +413,11 @@ export default function GovernanceControlPanel({
                   <div className="approval-meta">
                     <strong>{approval.targetKey}</strong>
                     <span>{approval.riskClass}</span>
-                    <time>{new Date(approval.expiresAt).toLocaleString('fa-IR')}</time>
+                    <time>{formatDateTime(approval.expiresAt)}</time>
                   </div>
                   <pre>{JSON.stringify(approval.requestPayload, null, 2)}</pre>
                   <label>
-                    دلیل تصمیم
+                    {m.console_governance_decision_reason_label()}
                     <input
                       value={decisionReasons[approval.id] ?? ''}
                       onChange={(event) =>
@@ -424,14 +435,14 @@ export default function GovernanceControlPanel({
                       onClick={() => decide(approval, 'approved')}
                       disabled={pending}
                     >
-                      <Check size={14} /> تأیید
+                      <Check size={14} /> {m.console_governance_approve_button()}
                     </button>
                     <button
                       type="button"
                       onClick={() => decide(approval, 'rejected')}
                       disabled={pending}
                     >
-                      <Ban size={14} /> رد
+                      <Ban size={14} /> {m.console_governance_reject_button()}
                     </button>
                   </div>
                 </article>
@@ -444,8 +455,8 @@ export default function GovernanceControlPanel({
           <section className="governance-lane action-lane" aria-labelledby="action-policy-heading">
             <div className="lane-heading">
               <div>
-                <span>DEFAULT DENY</span>
-                <h3 id="action-policy-heading">Action targets و policy</h3>
+                <span>{m.console_governance_default_deny()}</span>
+                <h3 id="action-policy-heading">{m.console_governance_action_policy_heading()}</h3>
               </div>
               <ShieldCheck size={18} />
             </div>
@@ -460,11 +471,11 @@ export default function GovernanceControlPanel({
                   });
                   setTargetKey('');
                   setExecutorRef('');
-                }, 'target server-side ثبت شد.');
+                }, m.console_governance_target_registered());
               }}
             >
               <label>
-                target key
+                {m.console_governance_target_key_label()}
                 <input
                   value={targetKey}
                   onChange={(event) => setTargetKey(event.target.value)}
@@ -472,7 +483,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                executor reference
+                {m.console_governance_executor_ref_label()}
                 <input
                   value={executorRef}
                   onChange={(event) => setExecutorRef(event.target.value)}
@@ -480,7 +491,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <button type="submit" disabled={pending || !targetKey || !executorRef}>
-                ثبت target
+                {m.console_governance_register_target_button()}
               </button>
             </form>
             <div className="compact-records">
@@ -490,7 +501,7 @@ export default function GovernanceControlPanel({
                     <strong>{target.key}</strong>
                     <small>{target.executorRef}</small>
                   </span>
-                  <b>{target.status}</b>
+                  <b>{formatStatusLabel(target.status)}</b>
                   {target.status === 'active' && (
                     <button
                       type="button"
@@ -502,10 +513,10 @@ export default function GovernanceControlPanel({
                             csrfToken,
                             { method: 'POST', body: '{}' },
                           );
-                        }, 'target و policyهای فعال آن غیرفعال شدند.')
+                        }, m.console_governance_target_disabled())
                       }
                     >
-                      غیرفعال‌سازی
+                      {m.console_governance_disable_button()}
                     </button>
                   )}
                 </div>
@@ -527,17 +538,17 @@ export default function GovernanceControlPanel({
                       riskClass,
                     }),
                   });
-                }, 'policy نسخه‌دار و approval-required ثبت شد.');
+                }, m.console_governance_policy_registered());
               }}
             >
               <label>
-                Flow
+                {m.console_governance_flow_label()}
                 <select
                   value={policyFlowId}
                   onChange={(event) => setPolicyFlowId(event.target.value)}
                   required
                 >
-                  <option value="">انتخاب Flow</option>
+                  <option value="">{m.console_governance_select_flow()}</option>
                   {flows.map((flow) => (
                     <option key={flow.id} value={flow.id}>
                       {flow.name}
@@ -546,13 +557,13 @@ export default function GovernanceControlPanel({
                 </select>
               </label>
               <label>
-                OpenClaw version
+                {m.console_governance_openclaw_version_label()}
                 <select
                   value={policyVersionId}
                   onChange={(event) => setPolicyVersionId(event.target.value)}
                   required
                 >
-                  <option value="">انتخاب version</option>
+                  <option value="">{m.console_governance_select_version()}</option>
                   {openClawVersions.map((version) => (
                     <option key={version.id} value={version.id}>
                       v{version.version}
@@ -561,13 +572,13 @@ export default function GovernanceControlPanel({
                 </select>
               </label>
               <label>
-                target
+                {m.console_governance_target_label()}
                 <select
                   value={policyTargetId}
                   onChange={(event) => setPolicyTargetId(event.target.value)}
                   required
                 >
-                  <option value="">انتخاب target</option>
+                  <option value="">{m.console_governance_select_target()}</option>
                   {activeTargets.map((target) => (
                     <option key={target.id} value={target.id}>
                       {target.key}
@@ -576,15 +587,15 @@ export default function GovernanceControlPanel({
                 </select>
               </label>
               <label>
-                risk
+                {m.console_governance_risk_label()}
                 <select value={riskClass} onChange={(event) => setRiskClass(event.target.value)}>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
+                  <option value="low">{m.shared_risk_low()}</option>
+                  <option value="medium">{m.shared_risk_medium()}</option>
+                  <option value="high">{m.shared_risk_high()}</option>
                 </select>
               </label>
               <button type="submit" disabled={pending || !policyVersionId || !policyTargetId}>
-                ثبت policy
+                {m.console_governance_register_policy_button()}
               </button>
             </form>
             <div className="compact-records policy-records">
@@ -598,7 +609,7 @@ export default function GovernanceControlPanel({
                       {policy.targetKey} · {policy.riskClass}
                     </small>
                   </span>
-                  <b>{policy.status}</b>
+                  <b>{formatStatusLabel(policy.status)}</b>
                   {policy.status === 'active' && (
                     <button
                       type="button"
@@ -610,10 +621,10 @@ export default function GovernanceControlPanel({
                             csrfToken,
                             { method: 'POST', body: '{}' },
                           );
-                        }, 'policy بازنشسته شد.')
+                        }, m.console_governance_policy_retired())
                       }
                     >
-                      بازنشستگی
+                      {m.console_governance_retire_button()}
                     </button>
                   )}
                 </div>
@@ -630,21 +641,21 @@ export default function GovernanceControlPanel({
           >
             <div className="lane-heading">
               <div>
-                <span>VERSIONED ASSUMPTIONS</span>
-                <h3 id="economics-control-heading">Runtime metering و economics</h3>
+                <span>{m.console_governance_versioned_assumptions()}</span>
+                <h3 id="economics-control-heading">{m.console_governance_economics_heading()}</h3>
               </div>
               <Coins size={18} />
             </div>
             <div className="economics-summary">
               <div>
-                <span>P&amp;L کاسیو پلاس</span>
+                <span>{m.console_governance_pnl_title()}</span>
                 <strong>{formatCurrency(pnl[0]?.gross_margin, pnl[0]?.currency)}</strong>
-                <small>gross margin</small>
+                <small>{m.console_governance_gross_margin()}</small>
               </div>
               <div>
-                <span>اکوسیستم</span>
+                <span>{m.console_governance_ecosystem()}</span>
                 <strong>{formatCurrency(tco[0]?.ecosystem_tco, tco[0]?.currency)}</strong>
-                <small>total cost</small>
+                <small>{m.console_governance_total_cost()}</small>
               </div>
             </div>
             <form
@@ -662,11 +673,11 @@ export default function GovernanceControlPanel({
                       effectiveFrom: isoFromLocal(effectiveFrom),
                     }),
                   });
-                }, 'planning assumption نسخه‌دار ثبت شد.');
+                }, m.console_governance_assumption_registered());
               }}
             >
               <label>
-                key
+                {m.console_governance_key_label()}
                 <input
                   value={pricingKey}
                   onChange={(event) => setPricingKey(event.target.value)}
@@ -674,7 +685,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                version
+                {m.console_governance_version_label()}
                 <input
                   type="number"
                   min="1"
@@ -684,17 +695,17 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                status
+                {m.console_governance_status_label()}
                 <select
                   value={pricingStatus}
                   onChange={(event) => setPricingStatus(event.target.value)}
                 >
-                  <option value="planning">planning</option>
-                  <option value="active">active</option>
+                  <option value="planning">{m.shared_status_planning()}</option>
+                  <option value="active">{m.shared_status_active()}</option>
                 </select>
               </label>
               <label>
-                effective from
+                {m.console_governance_effective_from_label()}
                 <input
                   type="datetime-local"
                   value={effectiveFrom}
@@ -712,7 +723,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <button type="submit" disabled={pending || !pricingKey}>
-                ثبت نسخهٔ assumption
+                {m.console_governance_register_assumption_button()}
               </button>
             </form>
             <div className="compact-records pricing-records">
@@ -722,9 +733,9 @@ export default function GovernanceControlPanel({
                     <strong>
                       {version.key} / v{version.version}
                     </strong>
-                    <small>{new Date(version.effectiveFrom).toLocaleString('fa-IR')}</small>
+                    <small>{formatDateTime(version.effectiveFrom)}</small>
                   </span>
-                  <b>{version.status}</b>
+                  <b>{formatStatusLabel(version.status)}</b>
                 </div>
               ))}
             </div>
@@ -757,11 +768,11 @@ export default function GovernanceControlPanel({
                       }),
                     },
                   );
-                }, 'runtime meter binding فعال شد و binding قبلی همان resource بازنشسته شد.');
+                }, m.console_governance_binding_activated());
               }}
             >
               <label>
-                runtime
+                {m.console_governance_runtime_label()}
                 <select
                   value={meterRuntime}
                   onChange={(event) =>
@@ -773,7 +784,7 @@ export default function GovernanceControlPanel({
                 </select>
               </label>
               <label>
-                resource key
+                {m.console_governance_resource_key_label()}
                 <input
                   value={meterResourceKey}
                   onChange={(event) => setMeterResourceKey(event.target.value)}
@@ -781,13 +792,13 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                pricing version
+                {m.console_governance_pricing_version_label()}
                 <select
                   value={meterPricingId}
                   onChange={(event) => setMeterPricingId(event.target.value)}
                   required
                 >
-                  <option value="">انتخاب نسخهٔ active</option>
+                  <option value="">{m.console_governance_select_active_version()}</option>
                   {activePricing.map((version) => (
                     <option key={version.id} value={version.id}>
                       {version.key} / v{version.version}
@@ -796,7 +807,7 @@ export default function GovernanceControlPanel({
                 </select>
               </label>
               <label>
-                currency
+                {m.console_governance_currency_label()}
                 <input
                   value={currency}
                   onChange={(event) => setCurrency(event.target.value.toUpperCase())}
@@ -805,16 +816,16 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                payer
+                {m.console_governance_payer_label()}
                 <select value={payer} onChange={(event) => setPayer(event.target.value)}>
-                  <option value="casioplus">casioplus</option>
-                  <option value="customer">customer</option>
-                  <option value="external_product">external product</option>
-                  <option value="shared">shared</option>
+                  <option value="casioplus">{m.shared_payer_casioplus()}</option>
+                  <option value="customer">{m.shared_payer_customer()}</option>
+                  <option value="external_product">{m.shared_payer_external_product()}</option>
+                  <option value="shared">{m.shared_payer_shared()}</option>
                 </select>
               </label>
               <label>
-                direct unit
+                {m.console_governance_direct_unit_label()}
                 <input
                   value={directUnitCost}
                   onChange={(event) => setDirectUnitCost(event.target.value)}
@@ -822,7 +833,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                input token
+                {m.console_governance_input_token_label()}
                 <input
                   value={inputTokenUnitCost}
                   onChange={(event) => setInputTokenUnitCost(event.target.value)}
@@ -830,7 +841,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                output token
+                {m.console_governance_output_token_label()}
                 <input
                   value={outputTokenUnitCost}
                   onChange={(event) => setOutputTokenUnitCost(event.target.value)}
@@ -838,7 +849,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                shared cost
+                {m.console_governance_shared_cost_label()}
                 <input
                   value={allocatedSharedCost}
                   onChange={(event) => setAllocatedSharedCost(event.target.value)}
@@ -846,7 +857,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <label>
-                billable multiplier
+                {m.console_governance_billable_multiplier_label()}
                 <input
                   value={billableMultiplier}
                   onChange={(event) => setBillableMultiplier(event.target.value)}
@@ -854,7 +865,7 @@ export default function GovernanceControlPanel({
                 />
               </label>
               <button type="submit" disabled={pending || !meterResourceKey || !meterPricingId}>
-                فعال‌سازی binding
+                {m.console_governance_activate_binding_button()}
               </button>
             </form>
             <div className="compact-records meter-records">
@@ -868,7 +879,7 @@ export default function GovernanceControlPanel({
                       {binding.pricingKey} v{binding.pricingVersion} · {binding.payer}
                     </small>
                   </span>
-                  <b>{binding.status}</b>
+                  <b>{formatStatusLabel(binding.status)}</b>
                 </div>
               ))}
             </div>
@@ -877,9 +888,7 @@ export default function GovernanceControlPanel({
       </div>
       <footer className="governance-foot">
         <SlidersHorizontal size={15} />
-        <span>
-          این صفحه planning assumptions را مدیریت می‌کند؛ قیمت‌ها در source hard-code نشده‌اند.
-        </span>
+        <span>{m.console_governance_footer_text()}</span>
       </footer>
     </section>
   );

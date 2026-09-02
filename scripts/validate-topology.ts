@@ -26,10 +26,12 @@ const requiredDirectories = [
   'services/n8n-adapter',
   'services/open-webui-adapter',
   'services/openclaw-adapter',
+  'services/github-app-adapter',
   'services/native-diagnosis-worker',
   'packages/contracts',
   'packages/domain',
   'packages/knowledge-model',
+  'packages/i18n',
   'packages/ui',
   'migrations',
   'runtime/n8n/workflows',
@@ -67,7 +69,11 @@ const { stdout: trackedFiles } = await execFileAsync('git', ['ls-files', '-z'], 
 });
 const generatedTrackedPaths = trackedFiles
   .split('\0')
-  .filter((file) => /(^|\/)(node_modules|dist|build)(\/|$)/.test(file));
+  .filter(
+    (file) =>
+      /(^|\/)(node_modules|dist|build)(\/|$)/.test(file) ||
+      /^packages\/i18n\/src\/paraglide\//.test(file),
+  );
 if (generatedTrackedPaths.length > 0) {
   throw new Error(`Generated paths must stay outside Git: ${generatedTrackedPaths.join(', ')}`);
 }
@@ -78,6 +84,7 @@ const workspacePackages = [
   'packages/contracts/package.json',
   'packages/domain/package.json',
   'packages/knowledge-model/package.json',
+  'packages/i18n/package.json',
   'packages/ui/package.json',
   'services/core-api/package.json',
   'services/integration-dispatcher/package.json',
@@ -85,6 +92,7 @@ const workspacePackages = [
   'services/n8n-adapter/package.json',
   'services/open-webui-adapter/package.json',
   'services/openclaw-adapter/package.json',
+  'services/github-app-adapter/package.json',
 ];
 
 type Manifest = {
@@ -102,11 +110,12 @@ for (const relativePath of workspacePackages) {
 }
 
 const allowedInternalDependencies: Record<string, string[]> = {
-  '@casioplus/console-web': ['@casioplus/contracts', '@casioplus/ui'],
-  '@casioplus/forge-web': ['@casioplus/contracts', '@casioplus/ui'],
+  '@casioplus/console-web': ['@casioplus/contracts', '@casioplus/i18n', '@casioplus/ui'],
+  '@casioplus/forge-web': ['@casioplus/contracts', '@casioplus/i18n', '@casioplus/ui'],
   '@casioplus/contracts': [],
   '@casioplus/domain': [],
   '@casioplus/knowledge-model': ['@casioplus/domain'],
+  '@casioplus/i18n': [],
   '@casioplus/ui': [],
   '@casioplus/core-api': [
     '@casioplus/contracts',
@@ -117,7 +126,8 @@ const allowedInternalDependencies: Record<string, string[]> = {
   '@casioplus/integration-dispatcher': [],
   '@casioplus/n8n-adapter': [],
   '@casioplus/open-webui-adapter': [],
-  '@casioplus/openclaw-adapter': [],
+  '@casioplus/openclaw-adapter': ['@casioplus/contracts'],
+  '@casioplus/github-app-adapter': ['@casioplus/contracts'],
 };
 
 const sharedUiEntrypoint = 'packages/ui/src/index.tsx';
@@ -223,6 +233,10 @@ const runtimeAdapterDockerfiles: Record<string, string[]> = {
     '@casioplus/openclaw-adapter deploy',
     'openclaw@2026.7.1-2',
   ],
+  'deployment/Dockerfile.github-app-adapter': [
+    '@casioplus/github-app-adapter build',
+    '@casioplus/github-app-adapter deploy',
+  ],
 };
 for (const [dockerfile, requiredFragments] of Object.entries(runtimeAdapterDockerfiles)) {
   const content = await readFile(resolve(root, dockerfile), 'utf8');
@@ -234,6 +248,13 @@ for (const [dockerfile, requiredFragments] of Object.entries(runtimeAdapterDocke
 }
 
 const runtimeComposeContracts: Record<string, string[]> = {
+  'runtime/n8n/docker-compose.yml': [
+    'n8nio/n8n:2.36.8',
+    'internal: true',
+    'CASIOPLUS_GITHUB_APP_INTERNAL_URL',
+    'CASIOPLUS_CORE_INTERNAL_URL',
+    'TRANSLATION_SCHEDULER_SECRET',
+  ],
   'runtime/open-webui/docker-compose.yml': [
     'ghcr.io/open-webui/open-webui:v0.11.1',
     'internal: true',

@@ -5,13 +5,16 @@
   "type": "module",
   "description": "Casioplus Console control and consumption surface",
   "scripts": {
+    "predev": "pnpm --filter @casioplus/i18n build",
     "dev": "remix vite:dev --host",
+    "prebuild": "pnpm --filter @casioplus/i18n build",
     "build": "remix vite:build",
     "start": "remix-serve ./build/server/index.js",
     "check": "tsc --noEmit"
   },
   "dependencies": {
     "@casioplus/contracts": "workspace:*",
+    "@casioplus/i18n": "workspace:*",
     "@casioplus/ui": "workspace:*",
     "@remix-run/node": "2.17.5",
     "@remix-run/react": "2.17.5",
