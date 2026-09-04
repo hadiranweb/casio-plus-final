@@ -519,6 +519,40 @@ export function createApp(pool: Pool, options: AppOptions = {}) {
     }
   });
 
+  app.get('/api/v1/process-runs/:runId/trace', async (req, res, next) => {
+    try {
+      const context = await resolveTenantContext(req);
+      await requireMembership(pool, context, participantRoles, enforceMembership);
+      const run = await pool.query(
+        `SELECT id, organization_id AS "organizationId", workspace_id AS "workspaceId",
+                work_item_id AS "workItemId", flow_id AS "flowId", flow_version_id AS "flowVersionId",
+                status, input, output, error_code AS "errorCode", created_at AS "createdAt",
+                completed_at AS "completedAt"
+           FROM flow_runs
+          WHERE id = $1 AND organization_id = $2 AND workspace_id = $3`,
+        [req.params.runId, context.organizationId, context.workspaceId],
+      );
+      if (run.rowCount !== 1) throw new HttpError(404, 'process_run_not_found');
+
+      const events = await pool.query(
+        `SELECT id, event_type AS type, payload, occurred_at AS "occurredAt"
+           FROM runtime_events
+          WHERE process_run_id = $1 AND organization_id = $2 AND workspace_id = $3
+          ORDER BY occurred_at ASC
+          LIMIT 50`,
+        [req.params.runId, context.organizationId, context.workspaceId],
+      );
+
+      return res.json({
+        run: run.rows[0],
+        events: events.rows,
+        requestId: requestId(req),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/v1/process-runs', async (req, res, next) => {
     try {
       const context = await resolveTenantContext(req);

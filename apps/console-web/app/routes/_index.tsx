@@ -6,6 +6,9 @@ import { useRouteLoaderData } from '@remix-run/react';
 import { CasioplusBrandMark } from '@casioplus/ui';
 import type { loader as rootLoader } from '../root.js';
 import type { MemoryGraphData } from '../components/MemoryGraph3D.client.js';
+import FlowRunAnalysisPanel, {
+  type FlowRunTrace,
+} from '../components/FlowRunAnalysisPanel.client.js';
 
 const MemoryGraph3D = lazy(() => import('../components/MemoryGraph3D.client.js'));
 const OrganizationControlPanel = lazy(
@@ -385,6 +388,10 @@ export default function Console() {
   const [hydrated, setHydrated] = useState(false);
   const [graphLoading, setGraphLoading] = useState(false);
   const [memoryGraph, setMemoryGraph] = useState<MemoryGraphResponse | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [runTrace, setRunTrace] = useState<FlowRunTrace | null>(null);
+  const [runTraceLoading, setRunTraceLoading] = useState(false);
+  const [runTraceError, setRunTraceError] = useState('');
 
   const csrfToken = session?.csrfToken ?? '';
   const activeFlow = useMemo(
@@ -418,18 +425,47 @@ export default function Console() {
           flows: flowResponse.flows,
           runs: runResponse.runs,
         }));
+        setSelectedRunId((current) =>
+          current && runResponse.runs.some((run) => run.id === current)
+            ? current
+            : (runResponse.runs[0]?.id ?? null),
+        );
       } catch (requestError) {
         if (requestError instanceof ApiError && requestError.status === 401) {
           setSession(null);
           setScope(null);
           setAvailableScopes([]);
           setMemoryGraph(null);
+          setSelectedRunId(null);
+          setRunTrace(null);
           setData(initialApiState);
         } else {
           setError(requestError instanceof Error ? requestError.message : 'data_load_failed');
         }
       } finally {
         setLoading(false);
+      }
+    },
+    [apiBase],
+  );
+
+  const loadRunTrace = useCallback(
+    async (runId: string) => {
+      setRunTraceLoading(true);
+      setRunTraceError('');
+      try {
+        const response = await requestJson<FlowRunTrace>(
+          apiBase,
+          `/api/v1/process-runs/${runId}/trace`,
+        );
+        setRunTrace(response);
+      } catch (requestError) {
+        setRunTrace(null);
+        setRunTraceError(
+          requestError instanceof Error ? requestError.message : 'run_trace_load_failed',
+        );
+      } finally {
+        setRunTraceLoading(false);
       }
     },
     [apiBase],
@@ -455,6 +491,14 @@ export default function Console() {
     setHydrated(true);
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    if (!session || !selectedRunId) {
+      setRunTrace(null);
+      return;
+    }
+    void loadRunTrace(selectedRunId);
+  }, [loadRunTrace, selectedRunId, session]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -782,6 +826,17 @@ export default function Console() {
               )}
             </article>
           </section>
+
+          {data.runs.length > 0 && (
+            <FlowRunAnalysisPanel
+              runs={data.runs}
+              selectedRunId={selectedRunId}
+              onSelectRun={setSelectedRunId}
+              trace={runTrace}
+              loading={runTraceLoading}
+              error={runTraceError}
+            />
+          )}
 
           <section className="lower-grid">
             <form className="surface work-form" id="new-work" onSubmit={createWorkItem}>
